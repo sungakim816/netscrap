@@ -12,6 +12,7 @@
     <AssemblyName>NetScrap</AssemblyName>
     <StartDevelopmentStorage>True</StartDevelopmentStorage>
     <Name>NetScrap</Name>
+    <UseWebProjectPorts>False</UseWebProjectPorts>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>

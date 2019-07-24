@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <ServiceDefinition name="NetScrap" xmlns="http://schemas.microsoft.com/ServiceHosting/2008/10/ServiceDefinition" schemaVersion="2015-04.2.6">
-  <WebRole name="MVCWebRole" vmsize="Standard_D1_v2">
+  <WebRole name="MVCWebRole" vmsize="Standard_A1_v2">
     <Sites>
       <Site name="Web">
         <Bindings>
@@ -9,20 +9,29 @@
       </Site>
     </Sites>
     <ConfigurationSettings>
+      <Setting name="StorageConnectionString" />
       <Setting name="Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString" />
     </ConfigurationSettings>
     <Endpoints>
       <InputEndpoint name="Endpoint1" protocol="http" port="80" />
     </Endpoints>
   </WebRole>
-  <WorkerRole name="Collector" vmsize="Standard_D1_v2">
+  <WorkerRole name="Collector" vmsize="Small">
     <ConfigurationSettings>
       <Setting name="Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString" />
+      <Setting name="StorageConnectionString" />
     </ConfigurationSettings>
+    <Endpoints>
+      <InternalEndpoint name="Endpoint1" protocol="http" port="*" />
+    </Endpoints>
   </WorkerRole>
-  <WorkerRole name="Crawler" vmsize="Standard_D1_v2">
+  <WorkerRole name="Crawler" vmsize="Standard_A1_v2">
     <ConfigurationSettings>
       <Setting name="Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString" />
+      <Setting name="StorageConnectionString" />
     </ConfigurationSettings>
+    <Endpoints>
+      <InternalEndpoint name="Endpoint1" protocol="http" port="*" />
+    </Endpoints>
   </WorkerRole>
 </ServiceDefinition>

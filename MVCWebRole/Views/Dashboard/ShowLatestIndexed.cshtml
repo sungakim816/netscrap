@@ -1,0 +1,46 @@
+﻿@model IEnumerable<MVCWebRole.Models.WebsitePage>
+@{
+    Layout = null;
+    string pub_date = string.Empty;
+}
+<div class="left">
+
+    @if (Model != null && Model.Any())
+    {
+        <h5>Most Latest Indexed</h5>
+        <div class="list-group">
+            @foreach (var page in Model)
+            {
+                <div class="list-group-item list-group-item-action ">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">@page.Title</h5>
+                        <small>Date crawled:&nbsp;@page.DateCrawled.ToLocalTime()</small>
+                    </div>
+                    <small>
+                        Domain: &nbsp; @page.PartitionKey <br />
+                    </small>
+                    <a href="@Url.Action("ShowIndexedDetails","Dashboard")?partitionkey=@page.PartitionKey&rowkey=@page.RowKey" target="_blank">
+                        Details
+                    </a>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info" role="alert">
+            <h4 class="alert-heading">Empty!</h4>
+            <p>No New Indexed Pages</p>
+            <p>Add a valid domain/url and start the crawlers</p>
+            <hr>
+            <p class="mb-0">
+                For more information, Contact us <br />
+                <address>
+                    <strong>Support:</strong>   <a href="mailto:support.netscrap@gmail.com">support.netscrap@gmail.com</a><br />
+                    <strong>Marketing:</strong> <a href="mailto:marketing.netscrap@gmail.com">marketing.netscrap@gmail.com</a>
+                </address>
+            </p>
+        </div>
+    }
+
+</div>
