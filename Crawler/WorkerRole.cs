@@ -68,7 +68,7 @@ namespace Crawler
             }
             catch (Exception)
             {
-                Trace.TraceInformation(string.Format("Command Queue currently empty, Current State: {0}", currentState));
+                // no command is found from the table, retain the current state
             }
             // start command is issued
             if (currentCommand.ToLower().Equals("start"))
@@ -197,7 +197,6 @@ namespace Crawler
         public override void Run()
         {
             Trace.TraceInformation("Crawler Worker is running");
-
             try
             {
                 this.RunAsync(this.cancellationTokenSource.Token).Wait();
@@ -218,7 +217,6 @@ namespace Crawler
             Trace.TraceInformation("Crawler Worker has been started");
             Initialize();
             Trace.TraceInformation("Crawler Worker has Been Initialize");
-            Trace.TraceInformation("Process ID: " + instanceId);
             return result;
         }
 
@@ -277,7 +275,6 @@ namespace Crawler
                 }
                 return;
             }
-            Trace.TraceInformation("Crawling");
             string url = retrieveUrl.AsString;
             // if url is empty, exit immediately 
             if (string.IsNullOrEmpty(url) || string.IsNullOrWhiteSpace(url))
@@ -301,7 +298,8 @@ namespace Crawler
                 // insert to the table in case of an error
                 WebsitePage errorPage = new WebsitePage(url, "REQUEST ERROR", "REQUEST ERROR")
                 {
-                    Error = ex.Message
+                    ErrorTag = "REQUEST ERROR",
+                    ErrorDetails = ex.Message
                 };
                 TableOperation insertOrReplace = TableOperation.InsertOrReplace(errorPage);
                 await websitepageTable.ExecuteAsync(insertOrReplace);
@@ -311,9 +309,23 @@ namespace Crawler
             string content = "Content";
             string title = "Title";
             HtmlNode titleNode;
+            // page title
             try
             {
-                titleNode = htmlDoc.DocumentNode.SelectSingleNode("//h1");
+                titleNode = htmlDoc.DocumentNode.SelectSingleNode("//h1//text()");
+                title = titleNode.InnerText.Trim();
+            }
+            catch (Exception)
+            {
+                titleNode = htmlDoc.DocumentNode.SelectSingleNode("//title//text()");
+                if (titleNode != null)
+                {
+                    title = titleNode.InnerText.Trim();
+                }
+            }
+            // body content
+            try
+            {
                 IEnumerable<string> words = htmlDoc.DocumentNode?
                     .SelectNodes("//body//p//text()")?
                     .Select(x => HtmlEntity.DeEntitize(x.InnerText.Trim()))
@@ -327,27 +339,23 @@ namespace Crawler
                     content += c;
                     content += " ";
                 }
-                title = titleNode.InnerText.Trim();
             }
             catch (Exception)
             {
-                titleNode = htmlDoc.DocumentNode.SelectSingleNode("//title");
-                if (titleNode != null)
-                {
-                    title = titleNode.InnerText.Trim();
-                    content = title;
-                }
+                content = "Content";
             }
+
             WebsitePage page = new WebsitePage(url, title, content);
             // check for parsing error/s
             if (htmlDoc.ParseErrors.Any())
             {
+                page.ErrorTag = "Html Parsing Error";
                 string errors = string.Empty;
                 foreach (var error in htmlDoc.ParseErrors)
                 {
-                    errors += (error.Reason + ";\n");
+                    errors += (error.Reason + " " + error.SourceText + ".");
                 }
-                page.Error = errors;
+                page.ErrorDetails = errors;
             }
             // check publish date/last modified date in the url
             DateTime current = DateTime.UtcNow;
@@ -363,7 +371,7 @@ namespace Crawler
                 }
                 strDate = strDate.Trim('/');
                 date = Convert.ToDateTime(strDate);
-                if (date.Value.Year == current.Year && (current.Month - date.Value.Month <= 2))
+                if (date.Value.Year == current.Year && (current.Month - date.Value.Month <= 3))
                 {
                     Trace.TraceInformation("Added: " + url);
                     page.PublishDate = date;
@@ -372,6 +380,7 @@ namespace Crawler
             }
             catch (Exception)
             {
+                // if publish date is not present, add it immediately to the container
                 container.Add(key, page);
             }
             // collect partition keys

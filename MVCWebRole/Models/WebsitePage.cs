@@ -29,7 +29,8 @@ namespace MVCWebRole.Models
 
         public WebsitePage() { }
 
-        public string Error { get; set; }
+        public string ErrorTag { get; set; }
+        public string ErrorDetails { get; set; }
 
         public WebsitePage(string url, string title, DateTime publishDate)
         {
@@ -57,7 +58,8 @@ namespace MVCWebRole.Models
             }
             this.PartitionKey = partitionKey;
             this.RowKey = Generate256HashCode(url.Trim());
-            this.Error = string.Empty;
+            this.ErrorTag = string.Empty;
+            this.ErrorDetails = string.Empty;
             this.DateCrawled = DateTime.Now.ToLocalTime();
         }
 
