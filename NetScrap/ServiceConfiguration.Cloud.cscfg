@@ -3,21 +3,21 @@
   <Role name="MVCWebRole">
     <Instances count="1" />
     <ConfigurationSettings>
-      <Setting name="StorageConnectionString" value="UseDevelopmentStorage=true" />
+      <Setting name="StorageConnectionString" value="DefaultEndpointsProtocol=https;AccountName=webnetcrawlerstorage;AccountKey=tqKmNF2MS1FnDj+ZDCtFZER/3gwmV5nuYLyTuWSfOhQKl2LeIfnjdB4rg93BhH7rJ4+x0wKB2UutLSKkyaaYcg==;EndpointSuffix=core.windows.net" />
       <Setting name="Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString" value="UseDevelopmentStorage=true" />
     </ConfigurationSettings>
   </Role>
   <Role name="Collector">
     <Instances count="1" />
     <ConfigurationSettings>
-      <Setting name="StorageConnectionString" value="UseDevelopmentStorage=true" />
+      <Setting name="StorageConnectionString" value="DefaultEndpointsProtocol=https;AccountName=webnetcrawlerstorage;AccountKey=tqKmNF2MS1FnDj+ZDCtFZER/3gwmV5nuYLyTuWSfOhQKl2LeIfnjdB4rg93BhH7rJ4+x0wKB2UutLSKkyaaYcg==;EndpointSuffix=core.windows.net" />
       <Setting name="Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString" value="UseDevelopmentStorage=true" />
     </ConfigurationSettings>
   </Role>
   <Role name="Crawler">
     <Instances count="4" />
     <ConfigurationSettings>
-      <Setting name="StorageConnectionString" value="UseDevelopmentStorage=true" />
+      <Setting name="StorageConnectionString" value="DefaultEndpointsProtocol=https;AccountName=webnetcrawlerstorage;AccountKey=tqKmNF2MS1FnDj+ZDCtFZER/3gwmV5nuYLyTuWSfOhQKl2LeIfnjdB4rg93BhH7rJ4+x0wKB2UutLSKkyaaYcg==;EndpointSuffix=core.windows.net" />
       <Setting name="Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString" value="UseDevelopmentStorage=true" />
     </ConfigurationSettings>
   </Role>
