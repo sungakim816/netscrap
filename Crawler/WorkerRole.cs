@@ -319,14 +319,14 @@ namespace Crawler
             string title = "Title";
             HtmlNode titleNode;
             // page title
-
-            titleNode = htmlDoc.DocumentNode.SelectSingleNode("//h1");
+            titleNode = htmlDoc.DocumentNode.SelectSingleNode("//title");
+             
             if(titleNode != null && !string.IsNullOrEmpty(titleNode.InnerText))
             {
                 title = titleNode.InnerText;
             } else
             {
-                titleNode = htmlDoc.DocumentNode.SelectSingleNode("//title");
+                titleNode = htmlDoc.DocumentNode.SelectSingleNode("//h1");
                 if (titleNode != null && !string.IsNullOrEmpty(titleNode.InnerText))
                 {
                     title = titleNode.InnerText;
