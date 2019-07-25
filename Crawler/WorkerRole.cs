@@ -1,5 +1,4 @@
 using System;
-using System.Configuration;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
@@ -15,6 +14,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using MVCWebRole.Models;
+using Nager.PublicSuffix;
 
 enum STATES { START, STOP, IDLE };
 
@@ -42,48 +42,17 @@ namespace Crawler
         private Dictionary<string, WebsitePage> container;
         private Dictionary<string, string> partionkeys;
         private TableBatchOperation batchInsert;
-        private RoleStatus status;
+        private RoleStatus workerStatus;
         private readonly HashAlgorithm algorithm = SHA256.Create();
         private readonly int minimumWebSiteCount = 30;
         private string instanceId;
-        private readonly string[] States = { "Running", "Idle", "Stopped" };
-        private readonly byte kRunning = 0;
-        private readonly byte kIdle = 1;
-        private readonly byte kStopped = 2;
-        private string currentState;
-        private bool IsStop;
-        private bool IsIdle;
-        private bool IsRunning;
-
+        private readonly string[] States = { "RUNNING", "STOPPED", "IDLE" };
+        private string currenStateDescription;
+        private byte currentStateNumber;
+        private DomainParser domainParser;
+        // current working url, for status report purpose, role status table
         private string currentWorkingUrl;
 
-        private async Task ReadCommandQueue()
-        {
-            string currentCommand = string.Empty;
-            try
-            {
-                CloudQueueMessage command = await commandQueue.PeekMessageAsync();
-                currentCommand = command.AsString;
-                string.Format("Command Queue: ", currentCommand);
-            }
-            catch (Exception)
-            {
-                // no command is found from the table, retain the current state
-            }
-            // start command is issued
-            if (currentCommand.ToLower().Equals("start"))
-            {
-                IsStop = false;
-                IsRunning = true;
-                IsIdle = false;
-            }
-            else
-            {
-                IsStop = true;
-                IsRunning = false;
-                IsIdle = false;
-            }
-        }
         private void Initialize()
         {
             // storageAccount = CloudStorageAccount.DevelopmentStorageAccount; // for local development
@@ -99,33 +68,57 @@ namespace Crawler
             websitepageTable.CreateIfNotExists();
             websitepagepartitionKeyTable.CreateIfNotExists();
             roleStatusTable.CreateIfNotExists();
-
-            // create if not exist
             urlQueue = queueClient.GetQueueReference("urlstocrawl");
             commandQueue = queueClient.GetQueueReference("command");
             urlQueue.CreateIfNotExists();
             commandQueue.CreateIfNotExists();
-            // parser
+            // html document parser
             htmlDoc = new HtmlDocument()
             {
                 OptionFixNestedTags = true
             };
+            // domain parser
+            domainParser = new DomainParser(new WebTldRuleProvider());
             // downloader
             webGet = new HtmlWeb();
             container = new Dictionary<string, WebsitePage>();
             partionkeys = new Dictionary<string, string>();
             batchInsert = new TableBatchOperation();
             instanceId = RoleEnvironment.CurrentRoleInstance.Id;
-            IsStop = true;
-            IsIdle = false;
-            IsRunning = false;
-            currentState = States[kStopped];
+
+            currentStateNumber = (byte)STATES.STOP;
+            currenStateDescription = States[currentStateNumber];
             currentWorkingUrl = string.Empty;
 
-            status = new RoleStatus(this.GetType().Namespace, instanceId);
+            // role workerStatus
+            workerStatus = new RoleStatus(this.GetType().Namespace, instanceId);
             // cpu counter
             cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total", true);
+            // clear role workerStatus table
             ClearRoleStatusTableContent(this.GetType().Namespace);
+        }
+
+        private async Task ReadCommandQueue()
+        {
+            string currentCommand = string.Empty;
+            try
+            {
+                CloudQueueMessage command = await commandQueue.PeekMessageAsync();
+                currentCommand = command.AsString;
+            }
+            catch (Exception)
+            {
+                // no command is found from the table, retain the current state
+            }
+            // start command is issued
+            if (currentCommand.ToLower().Equals("start"))
+            {
+                currentStateNumber = (byte)STATES.START;
+            }
+            else
+            {
+                currentStateNumber = (byte)STATES.STOP;
+            }
         }
 
         private void ClearRoleStatusTableContent(string partitionKey)
@@ -145,45 +138,43 @@ namespace Crawler
             }
         }
 
-        private async Task UpdateRoleStatus()
+        private async Task UpdateWorkerStatus()
         {
-            status.CPU = Convert.ToInt64(cpuCounter.NextValue());
+            workerStatus.CPU = Convert.ToInt64(cpuCounter.NextValue());
             long workingMemory = GC.GetTotalMemory(false);
             long totalMemory = Environment.WorkingSet;
-            status.WorkingMem = workingMemory;
-            status.TotalMem = totalMemory;
-            status.State = currentState;
-            status.CurrentWorkingUrl = currentWorkingUrl;
-            TableOperation insertOrReplace = TableOperation.InsertOrReplace(status);
-            await roleStatusTable.ExecuteAsync(insertOrReplace);
+            workerStatus.WorkingMem = workingMemory;
+            workerStatus.TotalMem = totalMemory;
+            workerStatus.State = currenStateDescription;
+            workerStatus.CurrentWorkingUrl = currentWorkingUrl;
+            TableOperation insertOrMerge = TableOperation.InsertOrMerge(workerStatus);
+            await roleStatusTable.ExecuteAsync(insertOrMerge);
         }
 
-        private async Task UpdateState()
+        private async Task UpdateInternalState()
         {
             int? urlQueueCount = await CountQueueMessages(urlQueue);
-            // if url queue count has no value or value == 0 and state is running
-            // set to idle
-            if ((!urlQueueCount.HasValue || urlQueueCount.Value == 0) && IsRunning)
+            // state: start/run
+            if (currentStateNumber == (byte)STATES.START)
             {
-                IsRunning = false;
-                IsStop = false;
-                IsIdle = true;
-                currentState = States[kIdle];
-                // set to running
+                // url queue count has no value or value == 0  
+                if (!urlQueueCount.HasValue || urlQueueCount.Value == 0)
+                {
+                    currentStateNumber = (byte)STATES.IDLE;
+                     
+                }
+                else
+                {
+                    currenStateDescription = States[currentStateNumber];
+                }
+                // state: stop/halt    
             }
-            else if ((urlQueueCount.HasValue && urlQueueCount.Value > 0) && IsRunning)
+            else if (currentStateNumber == (byte)STATES.STOP)
             {
-                IsStop = false;
-                IsIdle = false;
-                currentState = States[kRunning];
-            }
-            else if (IsStop)
-            {
-                IsIdle = false;
-                IsRunning = false;
-                currentState = States[kStopped];
+                currentStateNumber = (byte)STATES.STOP;
                 currentWorkingUrl = string.Empty;
             }
+            currenStateDescription = States[currentStateNumber];
         }
 
         // Generic Method For Counting Queue Message Content
@@ -235,47 +226,63 @@ namespace Crawler
             while (!cancellationToken.IsCancellationRequested)
             {
                 await ReadCommandQueue();
-                await UpdateState();
-                await UpdateRoleStatus();
-                if (IsStop)
+                await UpdateInternalState();
+                await UpdateWorkerStatus();
+                // main state handler
+                switch (currentStateNumber)
                 {
-                    Trace.TraceInformation("Crawler " + instanceId + "Stopped");
-                    // wait n seconds before Reading againg
-                    if (container.Any())
-                    {
-                        await BatchPushToDatabase(1);
-                    }
-                    currentWorkingUrl = string.Empty;
-                    Thread.Sleep(10000);
-                    continue;
+                    case (byte)STATES.START:
+                        {
+                            CloudQueueMessage retrieveUrl = null;
+                            string url = string.Empty;
+                            try
+                            {
+                                // get a url to crawl from the queue
+                                retrieveUrl = urlQueue.GetMessage();
+                                url = retrieveUrl.AsString;
+                            }
+                            catch (Exception)
+                            {
+                                // retrieveUrl is null, which means url queue is empty
+                            }
+                            await Crawl(url);
+                            // delete queue message
+                            if (retrieveUrl != null)
+                            {
+                                try
+                                {
+                                    await urlQueue.DeleteMessageAsync(retrieveUrl);
+                                }
+                                catch (Exception)
+                                {
+                                    Trace.TraceInformation("Another Process deleted this queue message");
+                                }
+                            }
+                            // wait 0.5s before Reading again
+                            Thread.Sleep(500);
+                        }
+                        break;
+                    case (byte)STATES.STOP:
+                        if (container.Any())
+                        {
+                            await BatchPushToDatabase(1);
+                        }
+                        currentWorkingUrl = string.Empty;
+                        // wait 10s before Reading again
+                        Thread.Sleep(10000);
+                        break;
+                    case (byte)STATES.IDLE:
+                        currentWorkingUrl = string.Empty;
+                        // wait 5s before Reading again
+                        Thread.Sleep(5000);
+                        break;
                 }
-                else if (IsIdle)
-                {
-                    Trace.TraceInformation("Crawler " + instanceId + "Idle");
-                    // wait n seconds before Reading againg
-                    currentWorkingUrl = string.Empty;
-                    Thread.Sleep(5000);
-                    continue;
-                }
-                await Crawl();
-                Thread.Sleep(500);
             }
         }
 
         // method for actual crawling and saving to the database
-        private async Task Crawl()
+        private async Task Crawl(string url)
         {
-            // get message from the url to crawl queue
-            CloudQueueMessage retrieveUrl = urlQueue.GetMessage();
-            if (retrieveUrl == null)
-            {
-                if (container.Any())
-                {
-                    await BatchPushToDatabase(1);
-                }
-                return;
-            }
-            string url = retrieveUrl.AsString;
             // if url is empty, exit immediately 
             if (string.IsNullOrEmpty(url) || string.IsNullOrWhiteSpace(url))
             {
@@ -298,11 +305,14 @@ namespace Crawler
                 // insert to the table in case of an error
                 WebsitePage errorPage = new WebsitePage(url, "REQUEST ERROR", "REQUEST ERROR")
                 {
-                    ErrorTag = "REQUEST ERROR",
-                    ErrorDetails = ex.Message
+                    ErrorTag = "REQUEST ERROR"
                 };
+                errorPage.ErrorDetails = ex.Message;
+                errorPage.Domain = domainParser.Get(url).Domain;
+                errorPage.SubDomain = domainParser.Get(url).SubDomain;
                 TableOperation insertOrReplace = TableOperation.InsertOrReplace(errorPage);
                 await websitepageTable.ExecuteAsync(insertOrReplace);
+                // exit method immediately
                 return;
             }
             // parse html page for content
@@ -342,7 +352,7 @@ namespace Crawler
             }
             catch (Exception)
             {
-                content = "Content";
+                // retain default value content = "Content"
             }
 
             WebsitePage page = new WebsitePage(url, title, content);
@@ -362,15 +372,11 @@ namespace Crawler
             DateTime? date = null;
             try
             {
-                // get the publish date using the url itself 
-                Uri uri = new Uri(url);
-                string strDate = string.Empty;
-                foreach (string s in uri.Segments.Where(x => Regex.IsMatch(x.Trim('/'), @"^\d+$")))
-                {
-                    strDate += s;
-                }
-                strDate = strDate.Trim('/');
-                date = Convert.ToDateTime(strDate);
+                // get the publish stored in meta data Note: cnn.com only!
+                var pubDate = htmlDoc.DocumentNode
+                    .SelectSingleNode("//meta[@name='pubdate']")
+                    .GetAttributeValue("content", string.Empty);
+                date = Convert.ToDateTime(pubDate);
                 if (date.Value.Year == current.Year && (current.Month - date.Value.Month <= 3))
                 {
                     Trace.TraceInformation("Added: " + url);
@@ -383,6 +389,9 @@ namespace Crawler
                 // if publish date is not present, add it immediately to the container
                 container.Add(key, page);
             }
+            var domainName = domainParser.Get(url);
+            page.Domain = domainName.Domain;
+            page.SubDomain = domainName.SubDomain;
             // collect partition keys
             if (!partionkeys.ContainsKey(page.PartitionKey))
             {
@@ -393,15 +402,6 @@ namespace Crawler
             }
             // wait for n website page entities before pushing to the Table
             await BatchPushToDatabase(minimumWebSiteCount);
-            // delete queue message
-            try
-            {
-                await urlQueue.DeleteMessageAsync(retrieveUrl);
-            }
-            catch (Exception)
-            {
-                Trace.TraceInformation("Message was Deleted by the other Process.");
-            }
         }
 
         private async Task BatchPushToDatabase(int min)

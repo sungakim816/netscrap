@@ -18,6 +18,9 @@ namespace MVCWebRole.Models
 
         public string Content { get; set; }
 
+        public string Domain { get; set; }
+        public string SubDomain { get; set; }
+
         [Required]
         public string Url { get; set; }
 

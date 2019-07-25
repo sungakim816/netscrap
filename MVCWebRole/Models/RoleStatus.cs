@@ -27,8 +27,6 @@ namespace MVCWebRole.Models
         }
         public string CurrentWorkingUrl { get; set; }
 
-        public string Status { get; set; }
-
         public Int64 WorkingMem { get; set; }
         public Int64 TotalMem { get; set; }
 

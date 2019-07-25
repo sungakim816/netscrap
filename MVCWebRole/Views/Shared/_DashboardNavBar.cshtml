@@ -1,7 +1,7 @@
 ﻿@{
     Layout = null;
 }
-<nav class="navbar fixed-top navbar-expand-lg bg-dark navbar-dark">
+<nav class="navbar fixed-top position-fixed navbar-expand-lg bg-dark navbar-dark">
     <a class="navbar-brand" href="@Url.Action("Index", "Home")">
         <img src="@Url.Content("~/Content/net-scrap-logo.png")" alt="logo" style="height:40px" />
     </a>
@@ -28,13 +28,14 @@
                     Clear
                 </a>
                 <div class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
-                    <button class="dropdown-item" name="clearqueue" onclick="ClearUrlQueue()" data-toggle="modal" data-target="#command-response">URL Queue</button>
-                    <button class="dropdown-item" name="clearindex" onclick="ClearIndexedUrls()" data-toggle="modal" data-target="#command-response">Indexed URLs</button>
+                    <button class="dropdown-item" name="clearqueue" onclick="ClearUrlQueue()" data-toggle="modal" data-target="#command-response">Queue</button>
+                    <button class="dropdown-item" name="clearindex" onclick="ClearIndexedUrls()" data-toggle="modal" data-target="#command-response">Indexed</button>
+                    <button class="dropdown-item" name="clearall" onclick="ClearAll()" data-toggle="modal" data-target="#command-response">Everything</button>
                 </div>
             </li>
         </ul>
-        <div class="form-inline my-2 my-lg-0 m-2">
-            <input id="url-input" class="form-control mr-sm-2 rounded-input" width="500" type="search" placeholder="https://website.com" aria-label="Add">
+        <div class="form-inline my-2 my-lg-0 m-2 w-75">
+            <input id="url-input" class="form-control mr-sm-2 rounded-input w-50" type="search" placeholder="https://website.com" aria-label="Add">
             <button data-toggle="modal" data-target="#command-response" onclick="AddSeedUrl()" class="btn btn-outline-warning" type="button">Add</button>
         </div>
     </div>

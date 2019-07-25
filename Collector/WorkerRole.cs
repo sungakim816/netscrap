@@ -15,6 +15,9 @@ using HtmlAgilityPack;
 using System.Linq;
 using MVCWebRole.Models;
 
+
+enum STATES { START, STOP, IDLE };
+
 namespace Collector
 {
     public class WorkerRole : RoleEntryPoint
@@ -35,7 +38,7 @@ namespace Collector
 
         private PerformanceCounter cpuCounter;
 
-        private string seedUrl;
+        private string currentSeedUrl;
         private readonly HashAlgorithm algorithm = SHA256.Create();
         private Dictionary<string, string> urlList;
         private Robots robotTxtParser;
@@ -43,19 +46,10 @@ namespace Collector
         private string instanceId;
         private HtmlDocument htmlDoc;
         private HtmlWeb webGet;
-        private string currentState;
-        private RoleStatus status;
-
-        private readonly string[] States = { "Running", "Idle", "Stopped" };
-        private readonly byte kRunning = 0;
-        private readonly byte kIdle = 1;
-        private readonly byte kStopped = 2;
-
-        private bool IsStop;
-        private bool IsIdle;
-        private bool IsRunning;
-
-
+        private string currentStateDescription;
+        private byte currentStateNumber;
+        private RoleStatus workerStatus;
+        private readonly string[] States = { "RUNNING", "STOPPED", "IDLE" };
 
         public override void Run()
         {
@@ -100,10 +94,10 @@ namespace Collector
             seedUrlQueue = queueClient.GetQueueReference("seedurls");
             // Initialize Queue (Command queue)
             commandQueue = queueClient.GetQueueReference("command");
-            seedUrl = string.Empty;
+            currentSeedUrl = string.Empty;
             // Create robots.txt parser
             robotTxtParser = new Robots();
-            Trace.TraceInformation("Url Collector Worker: Creating queue/s, table/s, if they don't exist.");
+            // create if queues and tables does not exists
             websitePageTable.CreateIfNotExists();
             roleStatusTable.CreateIfNotExists();
             urlQueue.CreateIfNotExists();
@@ -114,15 +108,14 @@ namespace Collector
             htmlDoc = new HtmlDocument();
             // instance id
             instanceId = RoleEnvironment.CurrentRoleInstance.Id;
-            // status class
-            status = new RoleStatus(this.GetType().Namespace, instanceId);
+            // workerStatus class
+            workerStatus = new RoleStatus(this.GetType().Namespace, instanceId);
             // cpu counter
             cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total", true);
             // initial state stop
-            currentState = States[kStopped];
-            IsStop = true;
-            IsIdle = false;
-            IsRunning = false;
+            currentStateNumber = (byte)STATES.STOP;
+            currentStateDescription = States[currentStateNumber];
+            // clear role status table
             ClearRoleStatusTableContent(this.GetType().Namespace);
         }
 
@@ -150,64 +143,51 @@ namespace Collector
             {
                 CloudQueueMessage command = await commandQueue.PeekMessageAsync();
                 currentCommand = command.AsString;
-                string.Format("Command Queue: ", currentCommand);
             }
             catch (Exception)
             {
-                Trace.TraceInformation(string.Format("Command Queue currently empty, Current State: {0}", currentState));
+                // command queue is empty
             }
             // start command is issued
             if (currentCommand.ToLower().Equals("start"))
             {
-                IsStop = false;
-                IsRunning = true;
-                IsIdle = false;
+                currentStateNumber = (byte)STATES.START;
             }
             else
             {
-                IsStop = true;
-                IsRunning = false;
-                IsIdle = false;
+                currentStateNumber = (byte)STATES.STOP;
             }
         }
 
-        private async Task UpdateRoleStatus()
+        private async Task UpdateWorkerStatus()
         {
-            status.CPU = Convert.ToInt64(cpuCounter.NextValue());
+            workerStatus.CPU = Convert.ToInt64(cpuCounter.NextValue());
             long workingMemory = GC.GetTotalMemory(false);
             long totalMemory = Environment.WorkingSet;
-            status.WorkingMem = workingMemory;
-            status.TotalMem = totalMemory;
-            status.State = currentState;
-            status.CurrentWorkingUrl = seedUrl;
-            TableOperation insertOrReplace = TableOperation.InsertOrReplace(status);
+            workerStatus.WorkingMem = workingMemory;
+            workerStatus.TotalMem = totalMemory;
+            workerStatus.State = currentStateDescription;
+            workerStatus.CurrentWorkingUrl = currentSeedUrl;
+            TableOperation insertOrReplace = TableOperation.InsertOrReplace(workerStatus);
             await roleStatusTable.ExecuteAsync(insertOrReplace);
         }
 
-        private async Task UpdateState()
+        private async Task UpdateInternalState()
         {
+            int? seedUrlQueueCount = await CountQueueMessages(seedUrlQueue);
+            if (currentStateNumber == (byte)STATES.START)
+            {
+                if (!seedUrlQueueCount.HasValue || seedUrlQueueCount.Value == 0)
+                {
+                    currentStateNumber = (byte)STATES.IDLE;
+                }
+            }
+            else
+            {
+                currentStateNumber = (byte)STATES.STOP;
 
-            int? urlQueueCount = await CountQueueMessages(seedUrlQueue);
-            // if seed url queue count has no value or value == 0 and state is running
-            if ((!urlQueueCount.HasValue || urlQueueCount.Value == 0) && IsRunning)
-            {
-                IsRunning = false;
-                IsStop = false;
-                IsIdle = true;
-                currentState = States[kIdle];
             }
-            else if ((urlQueueCount.HasValue && urlQueueCount.Value > 0) && IsRunning)
-            {
-                IsStop = false;
-                IsIdle = false;
-                currentState = States[kRunning];
-            }
-            else if (IsStop)
-            {
-                IsIdle = false;
-                IsRunning = false;
-                currentState = States[kStopped];
-            }
+            currentStateDescription = States[currentStateNumber];
         }
 
         private async Task<int?> CountQueueMessages(CloudQueue queue)
@@ -229,39 +209,38 @@ namespace Collector
             while (!cancellationToken.IsCancellationRequested)
             {
                 await ReadCommandQueue();
-                await UpdateState();
-                await UpdateRoleStatus();
-                if (IsStop)
-                {
-                    Trace.TraceInformation("Collector " + instanceId + "Stopped");
-                    // wait n seconds before Reading againg
-                    Thread.Sleep(10000);
-                    continue;
-                }
-                else if (IsIdle)
-                {
-                    Trace.TraceInformation("Collector" + instanceId + "Idle");
-                    // wait n seconds before Reading againg
-                    Thread.Sleep(5000);
-                    continue;
-                }
-                // get seed url from the Seed Url Queue
-                seedUrl = await GetSeedUrlFromQueue();
-                // parse robots.txt
-                robotTxtParser.SeedUrl = seedUrl;
-                robotTxtParser.ParseRobotsTxtFile();
-                // set current working url of the collector to seed url value
-                status.CurrentWorkingUrl = seedUrl;
-                // collect urls using sitemap
-                await UpdateRoleStatus();
-                await CollectUrlsToCrawlThroughSiteMaps(seedUrl);
-                // collect url from starting from the homepage
-                await CollectUrlStartFromPage(seedUrl, false);
-                // Reset
-                Reset();
-                // sleep for one second
-                Thread.Sleep(1000);
+                await UpdateInternalState();
+                await UpdateWorkerStatus();
 
+                switch (currentStateNumber)
+                {
+                    case (byte)STATES.START:
+                        // get seed url from the Seed Url Queue
+                        currentSeedUrl = await GetSeedUrlFromQueue();
+                        // parse robots.txt
+                        robotTxtParser.SeedUrl = currentSeedUrl;
+                        robotTxtParser.ParseRobotsTxtFile();
+                        // set current working url of the collector to current seed url value
+                        workerStatus.CurrentWorkingUrl = currentSeedUrl;
+                        // collect urls using sitemap
+                        await UpdateWorkerStatus();
+                        await CollectUrlsToCrawlThroughSiteMaps(currentSeedUrl);
+                        // collect url from starting from the homepage
+                        await CollectUrlStartFromPage(currentSeedUrl, false);
+                        // Reset
+                        Reset();
+                        // sleep for 0.5s
+                        Thread.Sleep(500);
+                        break;
+                    case (byte)STATES.STOP:
+                        // wait 10s before Reading again
+                        Thread.Sleep(10000);
+                        break;
+                    case (byte)STATES.IDLE:
+                        // wait 5s before Reading again
+                        Thread.Sleep(5000);
+                        break;
+                }
             }
         }
 
@@ -270,10 +249,7 @@ namespace Collector
             // clear url runtime queue
             urlList.Clear();
             // Empty seed url
-            seedUrl = string.Empty;
-            IsIdle = true;
-            IsRunning = false;
-            IsStop = false;
+            currentSeedUrl = string.Empty;
         }
 
         private async Task<string> GetSeedUrlFromQueue()
@@ -288,7 +264,6 @@ namespace Collector
                 {
                     await seedUrlQueue.DeleteMessageAsync(seedUrlObject);
                 }
-
                 if (!url.Contains("https://") && !url.Contains("http://"))
                 {
                     url = "https://" + url.Trim();
@@ -296,88 +271,14 @@ namespace Collector
             }
             catch (Exception)
             {
-                Trace.TraceInformation("Seed Url Queue is Currently Empty, Current Url: " + seedUrl);
-                url = seedUrl;
-
+                url = currentSeedUrl;
             }
             return url.Trim(' ').TrimEnd('/');
-        }
-
-        // recursive method for collecting urls starting from the home page
-        private async Task CollectUrlStartFromPage(string link, bool last)
-        {
-            await ReadCommandQueue();
-            if (IsStop)
-            {
-                return;
-            }
-            if (string.IsNullOrEmpty(link) || string.IsNullOrWhiteSpace(link))
-            {
-                return;
-            }
-            try
-            {
-                htmlDoc = webGet.Load(link);
-            }
-            catch (WebException)
-            {
-                webGet.BrowserTimeout = TimeSpan.FromSeconds(30);
-                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
-                htmlDoc = webGet.Load(link);
-            }
-            catch (Exception ex)
-            {
-                Trace.TraceInformation("Error link: " + link);
-                WebsitePage page = new WebsitePage(link, "ERROR", "ERROR")
-                {
-                    Error = ex.Message
-                };
-                TableOperation insertOrReplace = TableOperation.InsertOrReplace(page);
-                await websitePageTable.ExecuteAsync(insertOrReplace);
-                return;
-            }
-            var linkedPages = htmlDoc.DocumentNode.Descendants("a")
-                .Select(a => a.GetAttributeValue("href", null))
-                .Where(u => (!string.IsNullOrEmpty(u) && u.StartsWith("/")));
-            foreach (string page in linkedPages)
-            {
-                bool isLast = false;
-                string a = page.TrimStart('/');
-                a = seedUrl + "/" + a;
-                string key = Generate256HashCode(a);
-                if (!robotTxtParser.IsURLAllowed(a))
-                {
-                    Trace.TraceInformation("URL is Disallowed");
-                    continue;
-                }
-                if (urlList.ContainsKey(key))
-                {
-                    Trace.TraceInformation(a + " already exist on the queue");
-                    continue;
-                }
-                urlList.Add(key, a);
-                await urlQueue.AddMessageAsync(new CloudQueueMessage(a + " "));
-                Trace.TraceInformation("Added: " + a + " to the Queue");
-                if (page.Equals(linkedPages.LastOrDefault()))
-                {
-                    isLast = true;
-                }
-                await CollectUrlStartFromPage(a, isLast);
-            }
-            if (last)
-            {
-                return;
-            }
         }
 
         // Collect urls using sitemaps
         private async Task CollectUrlsToCrawlThroughSiteMaps(string target)
         {
-            // stop command is issued
-            if (IsStop)
-            {
-                return;
-            }
             if (string.IsNullOrEmpty(target) || string.IsNullOrWhiteSpace(target))
             {
                 return;
@@ -391,6 +292,12 @@ namespace Collector
             XmlDocument document = new XmlDocument();
             foreach (string sitemapUrl in robotTxtParser.GetSiteMaps())
             {
+                // check command queue
+                await ReadCommandQueue();
+                if (currentStateNumber == (byte)STATES.STOP)
+                {
+                    return;
+                }
                 document.Load(sitemapUrl);
                 // check if site map url is a sitemapindex (collection of other sitemaps)
                 if (document.DocumentElement.Name.ToLower() == "sitemapindex")
@@ -406,14 +313,15 @@ namespace Collector
 
         private async Task CollectUrlThroughSitemapIndex(XmlDocument document)
         {
-            await ReadCommandQueue();
-            if (IsStop)
-            {
-                return;
-            }
             XmlNodeList siteMapNodes = document.GetElementsByTagName("sitemap");
             foreach (XmlNode node in siteMapNodes)
             {
+                // check command queue
+                await ReadCommandQueue();
+                if (currentStateNumber == (byte)STATES.STOP)
+                {
+                    return;
+                }
                 string url = node["loc"].InnerText;
                 await CollectUrlsToCrawlFromSitemap(url);
             }
@@ -422,21 +330,13 @@ namespace Collector
         // use this method if 'link' is a link to an actual sitemap
         private async Task CollectUrlsToCrawlFromSitemap(string link)
         {
-            await ReadCommandQueue();
-            if (IsStop)
-            {
-                return;
-            }
             XmlDocument document = new XmlDocument();
             try
             {
                 document.Load(link);
             }
-            catch (Exception ex)
-            {
-                Trace.TraceInformation(ex.Message);
-            }
-
+            catch (Exception)
+            { }
             if (document.DocumentElement.Name.ToLower() != "urlset")
             {
                 return;
@@ -444,6 +344,12 @@ namespace Collector
             XmlNodeList urls = document.GetElementsByTagName("url");
             foreach (XmlNode url in urls)
             {
+                // check command queue
+                await ReadCommandQueue();
+                if (currentStateNumber == (byte)STATES.STOP)
+                {
+                    return;
+                }
                 string urlString = url["loc"].InnerText;
                 string key = Generate256HashCode(url["loc"].InnerText);
                 if (urlList.ContainsKey(key))
@@ -459,6 +365,69 @@ namespace Collector
                     urlToCrawl = new CloudQueueMessage(urlString);
                     await urlQueue.AddMessageAsync(urlToCrawl);
                 }
+            }
+        }
+
+        // recursive method for collecting url starting from the homepage of the target website
+        private async Task CollectUrlStartFromPage(string link, bool last)
+        {
+            if (string.IsNullOrEmpty(link) || string.IsNullOrWhiteSpace(link))
+            {
+                return;
+            }
+            try
+            {
+                htmlDoc = webGet.Load(link);
+            }
+            catch (Exception ex)
+            {
+                WebsitePage page = new WebsitePage(link, "ERROR", "ERROR")
+                {
+                    ErrorDetails = ex.Message,
+                    ErrorTag = "Error Link"
+                };
+                TableOperation insertOrReplace = TableOperation.InsertOrReplace(page);
+                await websitePageTable.ExecuteAsync(insertOrReplace);
+                return;
+            }
+            var linkedPages = htmlDoc.DocumentNode.Descendants("a")
+                .Select(a => a.GetAttributeValue("href", null))
+                .Where(u => (!string.IsNullOrEmpty(u) && u.StartsWith("/")));
+            foreach (string page in linkedPages)
+            {
+                // check command queue
+                await ReadCommandQueue();
+                if (currentStateNumber == (byte)STATES.STOP)
+                {
+                    return;
+                }
+                bool isLast = false;
+                string a = page.TrimStart('/');
+                a = currentSeedUrl + "/" + a;
+                string key = Generate256HashCode(a);
+                if (!robotTxtParser.IsURLAllowed(a))
+                {
+                    // skip disallowed urls
+                    continue;
+                }
+                if (urlList.ContainsKey(key))
+                {
+                    // skip urls already saved
+                    continue;
+                }
+                // add to runtime url list
+                urlList.Add(key, a);
+                await urlQueue.AddMessageAsync(new CloudQueueMessage(a + " "));
+                Trace.TraceInformation("Added: " + a + " to the Queue");
+                if (page.Equals(linkedPages.LastOrDefault()))
+                {
+                    isLast = true;
+                }
+                await CollectUrlStartFromPage(a, isLast);
+            }
+            if (last)
+            {
+                return;
             }
         }
 

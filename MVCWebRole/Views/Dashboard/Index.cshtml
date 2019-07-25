@@ -7,39 +7,61 @@
 @Html.Partial("_DashboardNavBar")
 
 <br />
-<div class="row">
+<div class="container">
+    <div class="row">
+
+        <div class="col-2 p-4 mb-3" style="max-width: initial; min-width:initial">
+            <div class="bg-transparent text-white h2 text-center">
+                <div class="card border-primary text-center bg-transparent rounded-input">
+                    <div class="card-body">
+                        <p class="font-weight-bold">Queue</p>
+                        <div id="url-queue-count">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-2 p-4 mb-3" style="max-width: initial; min-width:initial">
+            <div class="bg-transparent text-white h2 text-center">
+                <div class="card border-success text-center bg-transparent rounded-input">
+                    <div class="card-body">
+                        <p class="font-weight-bold">Indexed</p>
+                        <div id="indexed-website-count">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
     @*View for worker role status*@
     <div id="worker-role-status" class="col-10 container-fluid row position-relative">
     </div>
-    <div class="col-2">
-        <div class="text-white h1">
-            <p class="font-weight-bold">Queue</p>
-            <div id="url-queue-count">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="sr-only">Loading...</span>
-                </div>
-            </div>
-        </div>
-        <div class="bg-transparent text-white h1">
-            <p class="font-weight-bold">Indexed</p>
-            <div id="indexed-website-count">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="sr-only">Loading...</span>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-<div class="container">
-    <div id="latest-indexed-website" class="text-white">
-        <div class="text-center">
-            <div class="spinner-grow text-success" style="width: 3rem; height: 3rem;" role="status">
-                <span class="sr-only">Loading...</span>
-            </div>
-        </div>
-    </div>
-</div>
 
+    <div class="container">
+        <div id="latest-indexed-website" class="text-white">
+            <div class="text-center">
+                <div class="spinner-grow text-success" style="width: 3rem; height: 3rem;" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal For Indexed Urls Content -->
+    <div class="modal-dialog modal-dialog-scrollable" role="document">
+        <div class="modal fade" tabindex="-1" role="dialog" aria-labelledby="latest-indexed-content" aria-hidden="true">
+            <div id="latest-indexed-content"></div>
+        </div>
+    </div>
+</div>
 
 @**Modal for Command Notifications*@
 <div class="modal fade" id="command-response" tabindex="-1" role="dialog" aria-labelledby="command" aria-hidden="true">
@@ -54,68 +76,60 @@
     </div>
 </div>
 
-<!-- Modal For Indexed Urls Content -->
-<div class="modal-dialog modal-dialog-scrollable" role="document">
-    <div class="modal fade" tabindex="-1" role="dialog" aria-labelledby="latest-indexed-content" aria-hidden="true">
-        <div id="latest-indexed-content"></div>
-    </div>
-</div>
-
 @section scripts {
-
     <script>
-    @*Scripts for Real Time Update*@
-    UpdateUrlQueueCount();
-    setInterval("UpdateUrlQueueCount()", 2000);
+        @*Scripts for Real Time Update*@
+        UpdateUrlQueueCount();
+        setInterval("UpdateUrlQueueCount()", 2000);
 
-    UpdateWorkerStatus();
-    setInterval("UpdateWorkerStatus()", 2000);
+        UpdateWorkerStatus();
+        setInterval("UpdateWorkerStatus()", 3000);
 
-    UpdateIndexedWebsiteCount();
-    setInterval("UpdateIndexedWebsiteCount()", 10000);
+        UpdateIndexedWebsiteCount();
+        setInterval("UpdateIndexedWebsiteCount()", 10000);
 
-    UpdateLatestIndexedPage(10);
-    setInterval("UpdateLatestIndexedPage(10)", 10000);
+        UpdateLatestIndexedPage(10);
+        setInterval("UpdateLatestIndexedPage(10)", 10000);
 
-    function UpdateWorkerStatus() {
-        var xmlhttp = new XMLHttpRequest();
+        function UpdateWorkerStatus() {
+            var xmlhttp = new XMLHttpRequest();
+                xmlhttp.onreadystatechange = function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        document.getElementById("worker-role-status").innerHTML = this.responseText;
+                    }
+                };
+                xmlhttp.open('GET', '@Url.Action("WorkerStatus", "Dashboard")', true);
+                xmlhttp.send();
+        }
+
+        function AddSeedUrl() {
+            var url = document.getElementById("url-input").value;
+            var xmlhttp = new XMLHttpRequest();
             xmlhttp.onreadystatechange = function () {
-                if (this.readyState == 4 && this.status == 200) {
-                    document.getElementById("worker-role-status").innerHTML = this.responseText;
+            if (this.readyState == 4 && this.status == 200) {
+               document.getElementById("command-response-content").innerHTML = this.responseText;
+                document.getElementById("url-input").value = "";
                 }
             };
-            xmlhttp.open('GET', '@Url.Action("WorkerStatus", "Dashboard")', true);
+            xmlhttp.open('GET', '@Url.Action("AddSeedUrl", "Dashboard")' +'?url=' + url, true);
             xmlhttp.send();
-    }
-
-    function AddSeedUrl() {
-        var url = document.getElementById("url-input").value;
-        var xmlhttp = new XMLHttpRequest();
-        xmlhttp.onreadystatechange = function () {
-        if (this.readyState == 4 && this.status == 200) {
-           document.getElementById("command-response-content").innerHTML = this.responseText;
-            document.getElementById("url-input").value = "";
-            }
-        };
-        xmlhttp.open('GET', '@Url.Action("AddSeedUrl", "Dashboard")' +'?url=' + url, true);
-        xmlhttp.send();
-    }
-
-    function SendCommand(str) {
-        var xmlhttp = new XMLHttpRequest();
-        xmlhttp.onreadystatechange = function () {
-            if (this.readyState == 4 && this.status == 200) {
-                document.getElementById("command-response-content").innerHTML = this.responseText;
-            }
-        };
-
-        if (str == 'start') {
-            xmlhttp.open('GET', '@Url.Action("StartCrawler", "Dashboard")', true);
-        } else if (str == 'stop') {
-            xmlhttp.open('GET', '@Url.Action("StopCrawler", "Dashboard")', true);
         }
-        xmlhttp.send();
-    }
+
+        function SendCommand(str) {
+            var xmlhttp = new XMLHttpRequest();
+            xmlhttp.onreadystatechange = function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    document.getElementById("command-response-content").innerHTML = this.responseText;
+                }
+            };
+
+            if (str == 'start') {
+                xmlhttp.open('GET', '@Url.Action("StartCrawler", "Dashboard")', true);
+            } else if (str == 'stop') {
+                xmlhttp.open('GET', '@Url.Action("StopCrawler", "Dashboard")', true);
+            }
+            xmlhttp.send();
+        }
 
         function ClearUrlQueue() {
             var xmlhttp = new XMLHttpRequest();
@@ -139,37 +153,64 @@
             xmlhttp.send();
         }
 
-    function UpdateUrlQueueCount() {
-        var xmlhttp = new XMLHttpRequest();
+        function ClearAll() {
+            var xmlhttp = new XMLHttpRequest();
             xmlhttp.onreadystatechange = function () {
                 if (this.readyState == 4 && this.status == 200) {
-                    document.getElementById("url-queue-count").innerHTML = this.responseText;
+                    document.getElementById("command-response-content").innerHTML = this.responseText;
                 }
             };
-            xmlhttp.open('POST', '@Url.Action("UrlQueueCount", "Dashboard")', true);
+            xmlhttp.open('POST', '@Url.Action("ClearAll", "Dashboard")', true);
             xmlhttp.send();
-    }
+        }
 
-    function UpdateIndexedWebsiteCount() {
-        var xmlhttp = new XMLHttpRequest();
-            xmlhttp.onreadystatechange = function () {
-                if (this.readyState == 4 && this.status == 200) {
-                    document.getElementById("indexed-website-count").innerHTML = this.responseText;
-                }
-            };
-            xmlhttp.open('POST', '@Url.Action("IndexedWebsiteCount", "Dashboard")', true);
-            xmlhttp.send();
-    }
+        function UpdateUrlQueueCount() {
+            var xmlhttp = new XMLHttpRequest();
+                xmlhttp.onreadystatechange = function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        document.getElementById("url-queue-count").innerHTML = this.responseText;
+                    }
+                };
+                xmlhttp.open('POST', '@Url.Action("UrlQueueCount", "Dashboard")', true);
+                xmlhttp.send();
+        }
 
-    function UpdateLatestIndexedPage(count) {
-        var xmlhttp = new XMLHttpRequest();
-            xmlhttp.onreadystatechange = function () {
-                if (this.readyState == 4 && this.status == 200) {
-                    document.getElementById('latest-indexed-website').innerHTML = this.responseText;
-                }
-            };
-            xmlhttp.open('GET', '@Url.Action("ShowLatestIndexed", "Dashboard")' + "?count=" + count, true);
-            xmlhttp.send();
-    }
+        function UpdateIndexedWebsiteCount() {
+            var xmlhttp = new XMLHttpRequest();
+                xmlhttp.onreadystatechange = function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        document.getElementById("indexed-website-count").innerHTML = this.responseText;
+                    }
+                };
+                xmlhttp.open('POST', '@Url.Action("IndexedWebsiteCount", "Dashboard")', true);
+                xmlhttp.send();
+        }
+
+        function UpdateLatestIndexedPage(count) {
+            var xmlhttp = new XMLHttpRequest();
+                xmlhttp.onreadystatechange = function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        document.getElementById('latest-indexed-website').innerHTML = this.responseText;
+                    }
+                };
+                xmlhttp.open('GET', '@Url.Action("ShowLatestIndexed", "Dashboard")' + "?count=" + count, true);
+                xmlhttp.send();
+        }
+
+        function UpdateWorkerRoleBGColor(id, state) {
+            let workerRole = document.getElementById(id);
+            bgColor = "";
+            switch (state) {
+                case "Running":
+                    bgColor = "bg-success";
+                    break;
+                case "Idle":
+                    bgColor = "bg-info";
+                    break;
+                default:
+                    bgColor = "bg-secondary";
+            }
+            workerRole.classList.add(bgColor);
+        }
     </script>
 }

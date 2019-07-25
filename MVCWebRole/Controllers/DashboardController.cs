@@ -50,7 +50,7 @@ namespace MVCWebRole.Controllers
 
         // GET: Dashboard
         [HttpGet]
-        [OutputCache(Duration = 15)]
+        // [OutputCache(Duration = 15)]
         public ActionResult Index()
         {
             return View();
@@ -104,7 +104,7 @@ namespace MVCWebRole.Controllers
                 count = 10;
             }
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
-                .Select(new List<string> { "DateCrawled", "Title", "PartitionKey", "RowKey" });
+                .Select(new List<string> { "DateCrawled", "Title", "PartitionKey", "RowKey", "Domain", "SubDomain"});
             var websitepages = websitePageTable.ExecuteQuery(rangeQuery);
             websitepages = websitepages.OrderByDescending(x => x.DateCrawled).Take(count.Value);
             return View(websitepages);
@@ -251,6 +251,26 @@ namespace MVCWebRole.Controllers
             {
                 response = false;
             }
+            return View(response);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult> ClearAll()
+        {
+            bool response;
+            try
+            {
+                // set response true if successful
+                await ClearUrlQueue();
+                await ClearIndexedUrls();
+                response = true;
+            }
+            catch (Exception)
+            {
+                // false if something went wrong
+                response = false;
+            }
+
             return View(response);
         }
 

@@ -7,17 +7,19 @@
 
     @if (Model != null && Model.Any())
     {
-        <h5>Most Latest Indexed</h5>
+        <h5>Latest Indexed</h5>
         <div class="list-group">
             @foreach (var page in Model)
             {
                 <div class="list-group-item list-group-item-action ">
                     <div class="d-flex w-100 justify-content-between">
-                        <h5 class="mb-1">@page.Title</h5>
+                        <h6 class="mb-1 text-break">@page.Title</h6>
                         <small>Date crawled:&nbsp;@page.DateCrawled.ToLocalTime()</small>
                     </div>
-                    <small>
-                        Domain: &nbsp; @page.PartitionKey <br />
+                    <small class="text-dark">
+                        <span class="font-weight-bolder">Domain:</span> &nbsp;
+                        <span class="font-italic">@page.Domain &nbsp;(@page.SubDomain)</span>
+                        <br />
                     </small>
                     <a href="@Url.Action("ShowIndexedDetails","Dashboard")?partitionkey=@page.PartitionKey&rowkey=@page.RowKey" target="_blank">
                         Details
@@ -42,5 +44,4 @@
             </p>
         </div>
     }
-
 </div>

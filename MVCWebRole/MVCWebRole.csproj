@@ -307,6 +307,7 @@
     <Content Include="Views\Shared\_DashboardNavBar.cshtml" />
     <Content Include="Views\Shared\_Footer.cshtml" />
     <Content Include="Views\Shared\_MainPageNavBar.cshtml" />
+    <Content Include="Views\Dashboard\ClearAll.cshtml" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="App_Data\" />

@@ -7,11 +7,11 @@
     <div class="jumbotron">
         <h1 class="display-4"><a href="@Model.Url">@Model.Title</a></h1><br />
         <p class="lead">@Model.Content </p>
-        @Model.Error <br />
+        @Model.ErrorTag <br />
         <h6>Date Crawled: @Model.DateCrawled.ToLocalTime()</h6>
         @if (Model.PublishDate.HasValue)
         {
-            <h6>Published Date: @Model.PublishDate.Value.ToShortDateString()</h6>
+            <h6>Published Date: @Model.PublishDate.Value</h6>
         }
     </div>
 </div>

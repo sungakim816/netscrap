@@ -2,17 +2,18 @@
 @{
     Layout = null;
 }
-<div class=" container-fluid">
+
+<div>
     <div class="row p-4">
         @if (Model != null && Model.Any())
         {
-            foreach (var worker in Model.Reverse().Take(4))
+            foreach (var worker in Model)
             {
-                <div class="col-3">
-                    <div class="card text-white o-hidden h-100 bg-secondary rounded-input hoverable" id="@worker.RowKey">
+                <div class="col-4 p-2 mb-3" style="max-width: initial; min-width:initial">
+                    <div class="card text-white o-hidden h-100 rounded-input hoverable bg-secondary" style="max-width:initial; min-width:initial;" onload="UpdateWorkerRoleBGColor(this.id, '@worker.State')" id="@worker.PartitionKey@worker.RowKey.LastOrDefault()">
                         <div class="card-body">
                             <div class="container">
-                                <div class="mr-5">
+                                <div class="mr-5 text-white text-xl-center">
                                     @worker.PartitionKey&nbsp;@worker.RowKey.LastOrDefault()
                                 </div>
                                 <small>Cpu:&nbsp;</small>
@@ -28,7 +29,7 @@
                                 {
                                     <br />
                                     <small>
-                                        <span class="text-decoration-none d-inline-block text-truncate small" style="max-width: 150px;" title="@worker.CurrentWorkingUrl">
+                                        <span class="text-decoration-none d-inline-block text-truncate small" style="max-width: 200px; min-width: 150px;" title="@worker.CurrentWorkingUrl">
                                             <strong>Curr. URL:</strong>&nbsp;@worker.CurrentWorkingUrl
                                         </span>
                                     </small>
@@ -36,13 +37,12 @@
                             </div>
                         </div>
                         <div class="card-footer text-white clearfix small z-1">
-                            <span class="float-left">@worker.State</span>
+                            <span class="float-left font-weight-bold">@worker.State</span>
                             <span class="float-right">
                                 <i class="fas fa-angle-right"></i>
                             </span>
                         </div>
                     </div>
-
                 </div>
             }
         }
