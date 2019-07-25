@@ -1,7 +1,7 @@
 ﻿@model IEnumerable<MVCWebRole.Models.WebsitePage>
 @{
     Layout = null;
-    string pub_date = string.Empty;
+    string subDomain = string.Empty;
 }
 <div class="left">
 
@@ -11,6 +11,7 @@
         <div class="list-group">
             @foreach (var page in Model)
             {
+                if (page.SubDomain.Any()) { subDomain = page.SubDomain; }
                 <div class="list-group-item list-group-item-action ">
                     <div class="d-flex w-100 justify-content-between">
                         <h6 class="mb-1 text-break">@page.Title</h6>
@@ -18,7 +19,11 @@
                     </div>
                     <small class="text-dark">
                         <span class="font-weight-bolder">Domain:</span> &nbsp;
-                        <span class="font-italic">@page.Domain &nbsp;(@page.SubDomain)</span>
+                        <span class="font-italic">@page.Domain &nbsp;</span>
+                        @if(subDomain.Equals(string.Empty))
+                        {
+                            <span>(@subDomain)</span>
+                        }
                         <br />
                     </small>
                     <a href="@Url.Action("ShowIndexedDetails","Dashboard")?partitionkey=@page.PartitionKey&rowkey=@page.RowKey" target="_blank">
