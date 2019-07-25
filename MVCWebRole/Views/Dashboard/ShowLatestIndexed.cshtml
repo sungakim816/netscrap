@@ -20,7 +20,7 @@
                     <small class="text-dark">
                         <span class="font-weight-bolder">Domain:</span> &nbsp;
                         <span class="font-italic">@page.Domain &nbsp;</span>
-                        @if(subDomain.Equals(string.Empty))
+                        @if(!subDomain.Equals(string.Empty))
                         {
                             <span>(@subDomain)</span>
                         }
