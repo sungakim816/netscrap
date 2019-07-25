@@ -232,8 +232,23 @@ namespace Collector
                             // means to allow access to all URLs
                             if (CommandLine.Url.Length > 0)
                             {
+                                
                                 string disallowedUrl = CommandLine.Url;
+                                if(disallowedUrl.EndsWith("*") || disallowedUrl.EndsWith("$"))
+                                {
+                                    disallowedUrl = disallowedUrl.Substring(0, disallowedUrl.Length - 1);
+                                }
+                                // add to raw
                                 disallowedUrlsRaw.Add(disallowedUrl);
+                                while (true) {
+                                    int i = disallowedUrl.IndexOf('*');
+                                    if(i == -1)
+                                    {
+                                        break;
+                                    }
+                                    disallowedUrl = disallowedUrl.Remove(i, 1);
+                                    disallowedUrl = disallowedUrl.Insert(i, "(.*)?");
+                                }
                                 if (disallowedUrl.EndsWith("/"))
                                 {
                                     disallowedUrl = disallowedUrl.Substring(0, disallowedUrl.Length - 1);

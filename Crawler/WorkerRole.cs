@@ -12,7 +12,6 @@ using HtmlAgilityPack;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using MVCWebRole.Models;
 using Nager.PublicSuffix;
 
@@ -161,7 +160,7 @@ namespace Crawler
                 if (!urlQueueCount.HasValue || urlQueueCount.Value == 0)
                 {
                     currentStateNumber = (byte)STATES.IDLE;
-                     
+
                 }
                 else
                 {
@@ -320,17 +319,17 @@ namespace Crawler
             string title = "Title";
             HtmlNode titleNode;
             // page title
-            try
+
+            titleNode = htmlDoc.DocumentNode.SelectSingleNode("//h1");
+            if(titleNode != null && !string.IsNullOrEmpty(titleNode.InnerText))
             {
-                titleNode = htmlDoc.DocumentNode.SelectSingleNode("//h1//text()");
-                title = titleNode.InnerText.Trim();
-            }
-            catch (Exception)
+                title = titleNode.InnerText;
+            } else
             {
-                titleNode = htmlDoc.DocumentNode.SelectSingleNode("//title//text()");
-                if (titleNode != null)
+                titleNode = htmlDoc.DocumentNode.SelectSingleNode("//title");
+                if (titleNode != null && !string.IsNullOrEmpty(titleNode.InnerText))
                 {
-                    title = titleNode.InnerText.Trim();
+                    title = titleNode.InnerText;
                 }
             }
             // body content

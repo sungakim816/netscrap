@@ -220,6 +220,17 @@ namespace Collector
                         // parse robots.txt
                         robotTxtParser.SeedUrl = currentSeedUrl;
                         robotTxtParser.ParseRobotsTxtFile();
+                        if(robotTxtParser.GetDisallowedUrlRegex().Any())
+                        {
+                            foreach (var regex in robotTxtParser.GetDisallowedUrlRegex())
+                            {
+                                Trace.TraceInformation("Disallowed Regex:" + regex + "\n");
+                            }
+                        } else
+                        {
+                            Trace.TraceInformation("Empty");
+                        }
+ 
                         // set current working url of the collector to current seed url value
                         workerStatus.CurrentWorkingUrl = currentSeedUrl;
                         // collect urls using sitemap
@@ -285,7 +296,6 @@ namespace Collector
             }
             if (robotTxtParser.GetSiteMaps().Count == 0)
             {
-                Trace.TraceInformation("SITEMAPS IS EMPTY FOR " + robotTxtParser.SeedUrl);
                 return;
             }
             // initialize a XmlDocument Parser
@@ -378,8 +388,7 @@ namespace Collector
             try
             {
                 htmlDoc = webGet.Load(link);
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 WebsitePage page = new WebsitePage(link, "ERROR", "ERROR")
                 {
