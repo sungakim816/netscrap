@@ -77,8 +77,8 @@ namespace Collector
 
         private void Initialize()
         {
-            // storageAccount = CloudStorageAccount.DevelopmentStorageAccount; // for local development
-            storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
+            storageAccount = CloudStorageAccount.DevelopmentStorageAccount; // for local development
+            // storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
             // iniatilize instance count
             instanceCount = (short)RoleEnvironment.CurrentRoleInstance.Role.Instances.Count;
             // Initialize Runtime Queue List
@@ -220,17 +220,6 @@ namespace Collector
                         // parse robots.txt
                         robotTxtParser.SeedUrl = currentSeedUrl;
                         robotTxtParser.ParseRobotsTxtFile();
-                        if(robotTxtParser.GetDisallowedUrlRegex().Any())
-                        {
-                            foreach (var regex in robotTxtParser.GetDisallowedUrlRegex())
-                            {
-                                Trace.TraceInformation("Disallowed Regex:" + regex + "\n");
-                            }
-                        } else
-                        {
-                            Trace.TraceInformation("Empty");
-                        }
- 
                         // set current working url of the collector to current seed url value
                         workerStatus.CurrentWorkingUrl = currentSeedUrl;
                         // collect urls using sitemap
@@ -308,7 +297,21 @@ namespace Collector
                 {
                     return;
                 }
-                document.Load(sitemapUrl);
+                try
+                {
+                    document.Load(sitemapUrl);
+                }
+                catch (WebException)
+                {
+                    ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+                    document.Load(sitemapUrl);
+                }
+                catch (Exception ex)
+                {
+                    // push an error
+                    await PushErrorPageObject(sitemapUrl, ex.Message);
+                    continue;
+                }
                 // check if site map url is a sitemapindex (collection of other sitemaps)
                 if (document.DocumentElement.Name.ToLower() == "sitemapindex")
                 {
@@ -388,15 +391,15 @@ namespace Collector
             try
             {
                 htmlDoc = webGet.Load(link);
-            } catch (Exception ex)
+            }
+            catch (WebException)
             {
-                WebsitePage page = new WebsitePage(link, "ERROR", "ERROR")
-                {
-                    ErrorDetails = ex.Message,
-                    ErrorTag = "Error Link"
-                };
-                TableOperation insertOrReplace = TableOperation.InsertOrReplace(page);
-                await websitePageTable.ExecuteAsync(insertOrReplace);
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+                htmlDoc = webGet.Load(link);
+            }
+            catch (Exception ex)
+            {
+                await PushErrorPageObject(link, ex.Message);
                 return;
             }
             var linkedPages = htmlDoc.DocumentNode.Descendants("a")
@@ -452,6 +455,17 @@ namespace Collector
             }
             // Return the hexadecimal string.
             return sBuilder.ToString();
+        }
+
+        private async Task PushErrorPageObject(string url, string error)
+        {
+            WebsitePage page = new WebsitePage(url, "ERROR", "ERROR")
+            {
+                ErrorDetails = error,
+                ErrorTag = "Error Link"
+            };
+            TableOperation insertOrReplace = TableOperation.InsertOrReplace(page);
+            await websitePageTable.ExecuteAsync(insertOrReplace);
         }
     }
 }

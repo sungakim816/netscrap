@@ -54,8 +54,8 @@ namespace Crawler
 
         private void Initialize()
         {
-            // storageAccount = CloudStorageAccount.DevelopmentStorageAccount; // for local development
-            storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
+            storageAccount = CloudStorageAccount.DevelopmentStorageAccount; // for local development
+            // storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
             tableClient = storageAccount.CreateCloudTableClient();
             queueClient = storageAccount.CreateCloudQueueClient();
 
@@ -299,6 +299,11 @@ namespace Crawler
             {
                 htmlDoc = webGet.Load(url);
             }
+            catch (WebException)
+            {
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+                htmlDoc = webGet.Load(url);
+            }
             catch (Exception ex)
             {
                 // insert to the table in case of an error
@@ -320,11 +325,12 @@ namespace Crawler
             HtmlNode titleNode;
             // page title
             titleNode = htmlDoc.DocumentNode.SelectSingleNode("//title");
-             
-            if(titleNode != null && !string.IsNullOrEmpty(titleNode.InnerText))
+
+            if (titleNode != null && !string.IsNullOrEmpty(titleNode.InnerText))
             {
                 title = titleNode.InnerText;
-            } else
+            }
+            else
             {
                 titleNode = htmlDoc.DocumentNode.SelectSingleNode("//h1");
                 if (titleNode != null && !string.IsNullOrEmpty(titleNode.InnerText))

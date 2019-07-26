@@ -9,12 +9,15 @@
       </Site>
     </Sites>
     <ConfigurationSettings>
-      <Setting name="StorageConnectionString" />
       <Setting name="Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString" />
+      <Setting name="StorageConnectionString" />
     </ConfigurationSettings>
     <Endpoints>
       <InputEndpoint name="Endpoint1" protocol="http" port="80" />
     </Endpoints>
+    <Imports>
+      <Import moduleName="RemoteAccess" />
+    </Imports>
   </WebRole>
   <WorkerRole name="Collector" vmsize="Small">
     <ConfigurationSettings>
@@ -24,6 +27,10 @@
     <Endpoints>
       <InternalEndpoint name="Endpoint1" protocol="http" port="*" />
     </Endpoints>
+    <Imports>
+      <Import moduleName="RemoteAccess" />
+      <Import moduleName="RemoteForwarder" />
+    </Imports>
   </WorkerRole>
   <WorkerRole name="Crawler" vmsize="Standard_A1_v2">
     <ConfigurationSettings>
@@ -33,5 +40,8 @@
     <Endpoints>
       <InternalEndpoint name="Endpoint1" protocol="http" port="*" />
     </Endpoints>
+    <Imports>
+      <Import moduleName="RemoteAccess" />
+    </Imports>
   </WorkerRole>
 </ServiceDefinition>

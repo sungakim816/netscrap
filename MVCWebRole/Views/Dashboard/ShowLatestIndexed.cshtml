@@ -3,11 +3,11 @@
     Layout = null;
     string subDomain = string.Empty;
 }
-<div class="left">
+<div class="w-100 p-4">
     @if (Model != null && Model.Any())
     {
-        <p class="h5">Latest Indexed</p>
-        <div class="list-group">
+        <p class="h2">Latest Indexed</p>
+        <div class="list-group bg-light rounded-circle">
             @foreach (var page in Model)
             {
                 <div class="list-group-item list-group-item-action ">
@@ -18,7 +18,7 @@
                     <small class="text-dark">
                         <span class="font-weight-bolder">Domain:</span> &nbsp;
                         <span class="font-italic">@page.Domain &nbsp;</span>
-                        @if (page.SubDomain.Any())
+                        @if (page.SubDomain != null && page.SubDomain.Any())
                         {
                             <span>
                                 (

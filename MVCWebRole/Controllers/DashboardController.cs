@@ -29,8 +29,8 @@ namespace MVCWebRole.Controllers
 
         public DashboardController()
         {
-            // storageAccount = CloudStorageAccount.DevelopmentStorageAccount; // for local development
-            storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
+            storageAccount = CloudStorageAccount.DevelopmentStorageAccount; // for local development
+            // storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
             queueClient = storageAccount.CreateCloudQueueClient();
             tableClient = storageAccount.CreateCloudTableClient();
 

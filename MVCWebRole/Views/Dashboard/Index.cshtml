@@ -97,6 +97,7 @@
         setInterval("UpdateLatestIndexedPage(10)", 10000);
 
         UpdateErrorList();
+        setInterval("UpdateErrorList()", 60000);
 
         $('#error-list').on('click', 'a', function (e) {
             //prevent action link normal functionality

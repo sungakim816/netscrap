@@ -94,19 +94,21 @@ namespace Collector
             }
             catch (WebException ex)
             {
-                if (ex.Status == WebExceptionStatus.NameResolutionFailure)
-                {
-                    lastError = "Bad Domain Name";
-                }
-                else if (ex.Status == WebExceptionStatus.ProtocolError)
-                {
-                    HttpWebResponse HttpResponse = (HttpWebResponse)ex.Response;
-                    lastError = HttpResponse.StatusDescription;
-                }
-                else
-                {
-                    lastError = "Error: " + ex.ToString();
-                }
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+                content = client.DownloadString(url);
+                //if (ex.Status == WebExceptionStatus.NameResolutionFailure)
+                //{
+                //    lastError = "Bad Domain Name";
+                //}
+                //else if (ex.Status == WebExceptionStatus.ProtocolError)
+                //{
+                //    HttpWebResponse HttpResponse = (HttpWebResponse)ex.Response;
+                //    lastError = HttpResponse.StatusDescription;
+                //}
+                //else
+                //{
+                //    lastError = "Error: " + ex.ToString();
+                //}
             }
             catch (Exception ex)
             {
@@ -177,6 +179,38 @@ namespace Collector
             ParseRobotsTxtFile(SeedUrl);
         }
 
+        // generate url regex
+        private string GenerateUrlRegex(string raw, string domainAuthority)
+        {
+            // remove * and $ at the end of the string
+            if (raw.EndsWith("*") || raw.EndsWith("$"))
+            {
+                raw = raw.Substring(0, raw.Length - 1);
+            }
+            // replace * found within (in the middle) the string with (.*)?
+            // create a char array from the raw string
+            char[] rawArray = raw.ToCharArray();
+            string regex = string.Empty;
+            foreach (char c in rawArray)
+            {
+                if (c == '*')
+                {
+                    regex += @"(.*)?";
+                }
+                else
+                {
+                    regex += c;
+                }
+            }
+            if (regex.EndsWith("/"))
+            {
+                regex = raw.Substring(0, raw.Length - 1);
+                regex += @"\/";
+            }
+            string finalPattern = @"^(?:http(s)?\/\/)?(?:www.)?(.*)?(" + @domainAuthority + @"\" + regex + @")+(.*)$";
+            return finalPattern;
+        }
+
         public void ParseRobotsTxtFile(string url)
         {
             siteMaps.Clear();
@@ -232,30 +266,13 @@ namespace Collector
                             // means to allow access to all URLs
                             if (CommandLine.Url.Length > 0)
                             {
-                                
-                                string disallowedUrl = CommandLine.Url;
-                                if(disallowedUrl.EndsWith("*") || disallowedUrl.EndsWith("$"))
-                                {
-                                    disallowedUrl = disallowedUrl.Substring(0, disallowedUrl.Length - 1);
-                                }
+
+                                string raw = CommandLine.Url;
                                 // add to raw
-                                disallowedUrlsRaw.Add(disallowedUrl);
-                                while (true) {
-                                    int i = disallowedUrl.IndexOf('*');
-                                    if(i == -1)
-                                    {
-                                        break;
-                                    }
-                                    disallowedUrl = disallowedUrl.Remove(i, 1);
-                                    disallowedUrl = disallowedUrl.Insert(i, "(.*)?");
-                                }
-                                if (disallowedUrl.EndsWith("/"))
-                                {
-                                    disallowedUrl = disallowedUrl.Substring(0, disallowedUrl.Length - 1);
-                                    disallowedUrl += @"\/";
-                                }
-                                string finalPattern = @"^(?:http(s)?\/\/)?(?:www.)?(.*)?(" + @currentUrl.Authority + @"\" + @disallowedUrl + @")+(.*)$";
-                                disallowedUrlsRegex.Add(finalPattern);
+                                disallowedUrlsRaw.Add(raw);
+                                // generate a regex from raw 
+                                string regexPattern = GenerateUrlRegex(raw, currentUrl.Authority);
+                                disallowedUrlsRegex.Add(regexPattern);
                             }
                             else
                             {
