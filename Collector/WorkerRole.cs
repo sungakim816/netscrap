@@ -77,8 +77,8 @@ namespace Collector
 
         private void Initialize()
         {
-            storageAccount = CloudStorageAccount.DevelopmentStorageAccount; // for local development
-            // storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
+            // storageAccount = CloudStorageAccount.DevelopmentStorageAccount; // for local development
+            storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
             // iniatilize instance count
             instanceCount = (short)RoleEnvironment.CurrentRoleInstance.Role.Instances.Count;
             // Initialize Runtime Queue List

@@ -54,8 +54,8 @@ namespace Crawler
 
         private void Initialize()
         {
-            storageAccount = CloudStorageAccount.DevelopmentStorageAccount; // for local development
-            // storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
+            // storageAccount = CloudStorageAccount.DevelopmentStorageAccount; // for local development
+            storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
             tableClient = storageAccount.CreateCloudTableClient();
             queueClient = storageAccount.CreateCloudQueueClient();
 
