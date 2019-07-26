@@ -234,10 +234,12 @@ namespace Collector
                         break;
                     case (byte)STATES.STOP:
                         // wait 10s before Reading again
+                        Reset();
                         Thread.Sleep(10000);
                         break;
                     case (byte)STATES.IDLE:
                         // wait 5s before Reading again
+                        Reset();
                         Thread.Sleep(5000);
                         break;
                 }
