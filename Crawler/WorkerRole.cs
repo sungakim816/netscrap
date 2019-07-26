@@ -362,7 +362,7 @@ namespace Crawler
                 string errors = string.Empty;
                 foreach (var error in htmlDoc.ParseErrors)
                 {
-                    errors += (error.Reason + " " + error.SourceText + ".");
+                    errors += error.Reason + ";";
                 }
                 page.ErrorDetails = errors;
             }

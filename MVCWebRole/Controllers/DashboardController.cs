@@ -9,6 +9,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Web;
 using System.Web.Mvc;
+using PagedList;
 
 namespace MVCWebRole.Controllers
 {
@@ -56,21 +57,6 @@ namespace MVCWebRole.Controllers
             return View();
         }
 
-        public async Task<ActionResult> ErrorList()
-        {
-            TableQuery<DynamicTableEntity> tableQuery = new TableQuery<DynamicTableEntity>().Where(TableQuery.GenerateFilterCondition("Error", QueryComparisons.NotEqual, string.Empty)).Select(new string[] { "PartitionKey" });
-            string resolver(string pk, string rk, DateTimeOffset ts, IDictionary<string, EntityProperty> props, string etag) => props.ContainsKey("PartitionKey") ? props["PartitionKey"].StringValue : null;
-            List<string> entities = new List<string>();
-            TableContinuationToken continuationToken = null;
-            do
-            {
-                TableQuerySegment<string> tableQueryResult = await websitePageTable.ExecuteQuerySegmentedAsync(tableQuery, resolver, continuationToken);
-                continuationToken = tableQueryResult.ContinuationToken;
-                entities.AddRange(tableQueryResult.Results);
-            } while (continuationToken != null);
-            return View();
-        }
-
         [HttpGet]
         [Route("Dashboard/ShowIndexedDetails")]
         [Route("Dashboard/Show/Latest/Details/{partitionkey}/{rowkey}")]
@@ -97,6 +83,8 @@ namespace MVCWebRole.Controllers
         }
 
         [HttpGet]
+        [Route("Dashboard/ShowLatestIndexed")]
+        [Route("Dashboard/Show/Latest/{count:regex(^[1-9]{0,3}$)}")]
         public ActionResult ShowLatestIndexed(int? count)
         {
             if (!count.HasValue)
@@ -104,7 +92,7 @@ namespace MVCWebRole.Controllers
                 count = 10;
             }
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
-                .Select(new List<string> { "DateCrawled", "Title", "PartitionKey", "RowKey", "Domain", "SubDomain"});
+                .Select(new List<string> { "DateCrawled", "Title", "PartitionKey", "RowKey", "Domain", "SubDomain" });
             var websitepages = websitePageTable.ExecuteQuery(rangeQuery);
             websitepages = websitepages.OrderByDescending(x => x.DateCrawled).Take(count.Value);
             return View(websitepages);
@@ -279,6 +267,25 @@ namespace MVCWebRole.Controllers
         {
             var workerList = roleStatusTable.ExecuteQuery(new TableQuery<RoleStatus>());
             return View(workerList);
+        }
+
+        [HttpGet]
+        [Route("Dashboard/ErrorList/")]
+        [Route("Dashboard/Errors/{pageNumber:regex(^[1-9]{0,3}$)}")]
+        public ActionResult ErrorList(int? pageNumber)
+        {
+            // count, results per page
+            int pageSize = 10; // items per pages
+            if (!pageNumber.HasValue)
+            {
+                pageNumber = 1;
+            }
+            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
+                .Where(TableQuery.GenerateFilterCondition("ErrorTag", QueryComparisons.NotEqual, string.Empty))
+                .Select(new List<string> { "DateCrawled", "Title", "PartitionKey", "RowKey", "Domain", "SubDomain", "ErrorTag", "ErrorDetails", "Url" });
+            var websitepages = websitePageTable.ExecuteQuery(rangeQuery);
+            websitepages = websitepages.OrderByDescending(x => x.DateCrawled);
+            return PartialView(websitepages.ToPagedList((int)pageNumber, pageSize));
         }
     }
 }

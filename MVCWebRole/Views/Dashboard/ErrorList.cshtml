@@ -1,7 +1,58 @@
-﻿
-@{
-    ViewBag.Title = "Errors";
-}
+﻿@model PagedList.IPagedList<MVCWebRole.Models.WebsitePage>
+@using PagedList.Mvc;
 
-<h2>ErrorList</h2>
+@{
+    Layout = null;
+}
+<!doctype html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+</head>
+<body>
+    <div class="w-75 p-4">
+        @if (Model.Any())
+        {
+            <h2>Pages with Errors</h2>
+            <div class="list-group bg-light rounded-circle">
+                @foreach (var page in Model)
+                {
+                <div class="list-group-item list-group-item-action">
+                    <div class="d-flex text-break w-100 justify-content-start">
+                        <p class="h6 font-weight-bold text-wrap">@page.Title</p>
+                    </div>
+
+                    <span class="m-1 h6 text-uppercase">Error Tag:&nbsp; </span>
+                    <span class="bg-warning font-weight-bold text-wrap">@page.ErrorTag</span> <br />
+                    <input style="outline:none; border:none;" class="text-dark small w-100 input-group-sm m-1" title="@page.Url" id="@page.RowKey" value="@page.Url" readonly>
+                    <img src=@Url.Content("~/Content/clipboard.png") title="Copy To Clipboard" onclick="copyLinkToClipBoard('@page.RowKey')" />
+                </div>
+                }
+            </div>
+            //pagination
+            <div class="p-3">
+                <nav class="d-flex justify-content-center">
+                    <ul class="pagination">
+                        <li class="page-item  @(@Model.HasPreviousPage? "": "disabled")">
+                            <a class="page-link" href="@Url.Action("ErrorList", new { query = ViewBag.query, pageNumber = Model.PageNumber - 1 })" tabindex="-1" aria-disabled="@(@Model.HasPreviousPage? "false": "true")">
+                                Prev
+                            </a>
+                        </li>
+                        @for (var pageNumber = 1; pageNumber <= Model.PageCount; pageNumber++)
+                        {
+                            <li class="page-item @(@Model.PageNumber == pageNumber? "active": "")">
+                                <a class="page-link" href="@Url.Action("ErrorList", new { pageNumber = pageNumber })">@pageNumber</a>
+                            </li>
+                        }
+                        <li class="page-item @(@Model.HasNextPage? "": "disabled")">
+                            <a class="page-link" href="@Url.Action("ErrorList", new { pageNumber = Model.PageNumber + 1 })" tabindex="-1" aria-disabled="@(@Model.HasNextPage? "false": "true")">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+</body>
+</html>
+
 

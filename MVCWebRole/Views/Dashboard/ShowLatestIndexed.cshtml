@@ -4,14 +4,12 @@
     string subDomain = string.Empty;
 }
 <div class="left">
-
     @if (Model != null && Model.Any())
     {
-        <h5>Latest Indexed</h5>
+        <p class="h5">Latest Indexed</p>
         <div class="list-group">
             @foreach (var page in Model)
             {
-                if (page.SubDomain.Any()) { subDomain = page.SubDomain; }
                 <div class="list-group-item list-group-item-action ">
                     <div class="d-flex w-100 justify-content-between">
                         <h6 class="mb-1 text-break">@page.Title</h6>
@@ -20,9 +18,14 @@
                     <small class="text-dark">
                         <span class="font-weight-bolder">Domain:</span> &nbsp;
                         <span class="font-italic">@page.Domain &nbsp;</span>
-                        @if(!subDomain.Equals(string.Empty))
+                        @if (page.SubDomain.Any())
                         {
-                            <span>(@subDomain)</span>
+                            <span>
+                                (
+                                <span class="font-weight-bold">sub:</span>&nbsp;
+                                <span class="font-italic">@page.SubDomain</span>
+                                )
+                            </span>
                         }
                         <br />
                     </small>
