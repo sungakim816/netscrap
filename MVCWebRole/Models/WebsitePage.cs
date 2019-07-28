@@ -19,6 +19,7 @@ namespace MVCWebRole.Models
         public string Content { get; set; }
 
         public string Domain { get; set; }
+
         public string SubDomain { get; set; }
 
         [Required]
@@ -27,12 +28,10 @@ namespace MVCWebRole.Models
         [Timestamp]
         public DateTime? PublishDate { get; set; }
 
-        [Timestamp]
-        public DateTime DateCrawled { get; set; }
-
         public WebsitePage() { }
 
         public string ErrorTag { get; set; }
+
         public string ErrorDetails { get; set; }
 
         public WebsitePage(string url, string title, DateTime publishDate)
@@ -63,7 +62,6 @@ namespace MVCWebRole.Models
             this.RowKey = Generate256HashCode(url.Trim());
             this.ErrorTag = string.Empty;
             this.ErrorDetails = string.Empty;
-            this.DateCrawled = DateTime.Now.ToLocalTime();
         }
 
         private string Generate256HashCode(string s)

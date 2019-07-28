@@ -92,9 +92,9 @@ namespace MVCWebRole.Controllers
                 count = 10;
             }
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
-                .Select(new List<string> { "DateCrawled", "Title", "PartitionKey", "RowKey", "Domain", "SubDomain" });
+                .Select(new List<string> { "Timestamp", "Title", "PartitionKey", "RowKey", "Domain", "SubDomain" });
             var websitepages = websitePageTable.ExecuteQuery(rangeQuery);
-            websitepages = websitepages.OrderByDescending(x => x.DateCrawled).Take(count.Value);
+            websitepages = websitepages.OrderByDescending(x => x.Timestamp).Take(count.Value);
             return View(websitepages);
         }
 
@@ -282,9 +282,9 @@ namespace MVCWebRole.Controllers
             }
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
                 .Where(TableQuery.GenerateFilterCondition("ErrorTag", QueryComparisons.NotEqual, string.Empty))
-                .Select(new List<string> { "DateCrawled", "Title", "PartitionKey", "RowKey", "Domain", "SubDomain", "ErrorTag", "ErrorDetails", "Url" });
+                .Select(new List<string> { "Timestamp", "Title", "PartitionKey", "RowKey", "Domain", "SubDomain", "ErrorTag", "ErrorDetails", "Url" });
             var websitepages = websitePageTable.ExecuteQuery(rangeQuery);
-            websitepages = websitepages.OrderByDescending(x => x.DateCrawled);
+            websitepages = websitepages.OrderByDescending(x => x.Timestamp);
             return PartialView(websitepages.ToPagedList((int)pageNumber, pageSize));
         }
     }

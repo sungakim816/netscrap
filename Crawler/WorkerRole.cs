@@ -54,7 +54,6 @@ namespace Crawler
 
         private void Initialize()
         {
-            // storageAccount = CloudStorageAccount.DevelopmentStorageAccount; // for local development
             storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
             tableClient = storageAccount.CreateCloudTableClient();
             queueClient = storageAccount.CreateCloudQueueClient();
@@ -288,9 +287,9 @@ namespace Crawler
                 return;
             }
             currentWorkingUrl = url;
-            // check if container has the website page already
+            // encode the url
             string key = Generate256HashCode(url);
-            if (container.ContainsKey(key))
+            if (container.ContainsKey(key)) // check if container has the website page already
             {
                 return;
             }
@@ -323,9 +322,8 @@ namespace Crawler
             string content = "Content";
             string title = "Title";
             HtmlNode titleNode;
-            // page title
+            // parsing page title
             titleNode = htmlDoc.DocumentNode.SelectSingleNode("//title");
-
             if (titleNode != null && !string.IsNullOrEmpty(titleNode.InnerText))
             {
                 title = titleNode.InnerText;
@@ -338,7 +336,7 @@ namespace Crawler
                     title = titleNode.InnerText;
                 }
             }
-            // body content
+            // parsing body content
             try
             {
                 IEnumerable<string> words = htmlDoc.DocumentNode?
@@ -361,15 +359,17 @@ namespace Crawler
             }
 
             WebsitePage page = new WebsitePage(url, title, content);
-            // check for parsing error/s
+            // check for parsing errors
             if (htmlDoc.ParseErrors.Any())
             {
+                // set ErrorTag
                 page.ErrorTag = "Html Parsing Error";
                 string errors = string.Empty;
                 foreach (var error in htmlDoc.ParseErrors)
                 {
                     errors += error.Reason + ";";
                 }
+                // set Error Details
                 page.ErrorDetails = errors;
             }
             // check publish date/last modified date in the url

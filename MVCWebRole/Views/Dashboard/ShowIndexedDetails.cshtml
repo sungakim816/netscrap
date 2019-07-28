@@ -11,7 +11,7 @@
         {
             <h6>Error Tag: @Model.ErrorTag</h6>
         }
-        <h6>Date Crawled: @Model.DateCrawled.ToLocalTime()</h6>
+        <h6>Date Crawled: @Model.Timestamp.ToLocalTime()</h6>
         @if (Model.PublishDate.HasValue)
         {
             <h6>Published Date: @Model.PublishDate.Value</h6>

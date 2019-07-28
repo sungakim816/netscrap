@@ -92,23 +92,10 @@ namespace Collector
             {
                 content = client.DownloadString(url);
             }
-            catch (WebException ex)
+            catch (WebException)
             {
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
                 content = client.DownloadString(url);
-                //if (ex.Status == WebExceptionStatus.NameResolutionFailure)
-                //{
-                //    lastError = "Bad Domain Name";
-                //}
-                //else if (ex.Status == WebExceptionStatus.ProtocolError)
-                //{
-                //    HttpWebResponse HttpResponse = (HttpWebResponse)ex.Response;
-                //    lastError = HttpResponse.StatusDescription;
-                //}
-                //else
-                //{
-                //    lastError = "Error: " + ex.ToString();
-                //}
             }
             catch (Exception ex)
             {
