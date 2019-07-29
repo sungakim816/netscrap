@@ -305,13 +305,14 @@ namespace Crawler
                 try
                 {
                     htmlDoc = webGet.Load(url);
-                } catch(Exception ex)
+                }
+                catch (Exception ex)
                 {
                     await PushErrorPageObject(url, "REQUEST ERROR", ex.Message);
                     // exit method immediately
                     return;
                 }
-                 
+
             }
             // parse html page for content
             string content = "Content";

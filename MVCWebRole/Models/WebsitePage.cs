@@ -54,13 +54,32 @@ namespace MVCWebRole.Models
 
         private void Initialize(string url)
         {
-            string partitionKey = domainParser.Get(url).Domain;
+
+            string partitionKey;
+            string subDomain;
+            try
+            {
+                partitionKey = domainParser.Get(url).Domain;
+            }catch(Exception)
+            {
+                partitionKey = "Error Domain";
+            }
+
+            try
+            {
+               subDomain = domainParser.Get(url).SubDomain;
+            }catch(Exception)
+            {
+                subDomain = "Error SubDomain";
+            }
+
             this.PartitionKey = partitionKey;
             this.Domain = this.PartitionKey;
+            this.SubDomain = subDomain;
             this.RowKey = Generate256HashCode(url.Trim());
             this.ErrorTag = string.Empty;
             this.ErrorDetails = string.Empty;
-            this.SubDomain = domainParser.Get(url).SubDomain;
+            
         }
 
         private string Generate256HashCode(string s)
