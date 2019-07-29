@@ -33,7 +33,6 @@
   </WorkerRole>
   <WorkerRole name="Crawler" vmsize="Small">
     <ConfigurationSettings>
-      <Setting name="Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString" />
       <Setting name="StorageConnectionString" />
     </ConfigurationSettings>
     <Endpoints>

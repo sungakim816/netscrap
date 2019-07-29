@@ -32,7 +32,6 @@
     <Instances count="4" />
     <ConfigurationSettings>
       <Setting name="StorageConnectionString" value="DefaultEndpointsProtocol=https;AccountName=webnetcrawlerstorage;AccountKey=tqKmNF2MS1FnDj+ZDCtFZER/3gwmV5nuYLyTuWSfOhQKl2LeIfnjdB4rg93BhH7rJ4+x0wKB2UutLSKkyaaYcg==;EndpointSuffix=core.windows.net" />
-      <Setting name="Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString" value="DefaultEndpointsProtocol=https;AccountName=webnetcrawlerstorage;AccountKey=tqKmNF2MS1FnDj+ZDCtFZER/3gwmV5nuYLyTuWSfOhQKl2LeIfnjdB4rg93BhH7rJ4+x0wKB2UutLSKkyaaYcg==;EndpointSuffix=core.windows.net" />
       <Setting name="Microsoft.WindowsAzure.Plugins.RemoteAccess.Enabled" value="true" />
       <Setting name="Microsoft.WindowsAzure.Plugins.RemoteAccess.AccountUsername" value="kimsungakooapps" />
       <Setting name="Microsoft.WindowsAzure.Plugins.RemoteAccess.AccountEncryptedPassword" value="MIIBpQYJKoZIhvcNAQcDoIIBljCCAZICAQAxggFOMIIBSgIBADAyMB4xHDAaBgNVBAMME1dpbmRvd3MgQXp1cmUgVG9vbHMCEFFuzkqsyrm+SdRyiic1+XcwDQYJKoZIhvcNAQEBBQAEggEAnKE7EQS0DwrKTVR2zgi1WyzvY2EAORWQiO9D9Q4CwxRw/Qk10klXlIqLn5JlsOZyOc6TNMUquuq87kd2gFPZmPP2fRRxbEyjM0Wha6I1DNG+uxuurnPRfsdRpvI553FK8KgE7XZzjQnmrjcWVdQ8SM4850gGz5QiZmvL8KvIFuGEwAGX3XGSR1ymGax5iSlrthYJ9BB8vkN1cH9XJCFnXUEWEQyf7VPukhR5txcsTwnRRFY6hPDsDheCh4dhpDZ/WOzCxzRHTIkhFlCuxAAWkTME8GdsDJescKMCb54R8vkUT3LV5Aa0t9B2j5v5guT2AAa6P8QMSKr7hDVWvZoZODA7BgkqhkiG9w0BBwEwFAYIKoZIhvcNAwcECEA2VG9bEUuzgBh0gwOn+ZNFJY7T+ndwQhDe/f27LU6/Mck=" />

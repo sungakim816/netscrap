@@ -38,7 +38,7 @@ namespace Collector
 
         private void Initialize()
         {
-            RobotAgent = string.Empty;
+            RobotAgent = "Net Scrap";
             ProxyServer = string.Empty;
             domainRegex = string.Empty;
             disallowedUrlsRegex = new List<string>();

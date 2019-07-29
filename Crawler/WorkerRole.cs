@@ -326,14 +326,14 @@ namespace Crawler
             titleNode = htmlDoc.DocumentNode.SelectSingleNode("//title");
             if (titleNode != null && !string.IsNullOrEmpty(titleNode.InnerText))
             {
-                title = titleNode.InnerText;
+                title = HtmlEntity.DeEntitize(titleNode.InnerText.Trim());
             }
             else
             {
                 titleNode = htmlDoc.DocumentNode.SelectSingleNode("//h1");
                 if (titleNode != null && !string.IsNullOrEmpty(titleNode.InnerText))
                 {
-                    title = titleNode.InnerText;
+                    title = HtmlEntity.DeEntitize(titleNode.InnerText.Trim());
                 }
             }
             // parsing body content
