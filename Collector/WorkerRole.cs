@@ -115,6 +115,7 @@ namespace Collector
             currentStateNumber = (byte)STATES.STOP;
             currentStateDescription = States[currentStateNumber];
             // clear role status table
+            // Partionkey this.GetType().Namespace (Collector)
             ClearRoleStatusTableContent(this.GetType().Namespace);
         }
 
@@ -305,14 +306,18 @@ namespace Collector
                 catch (WebException)
                 {
                     ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-                    document.Load(sitemapUrl);
+                    try
+                    {
+                        document.Load(sitemapUrl);
+                    }
+                    catch (Exception ex)
+                    {
+                        // push an error
+                        await PushErrorPageObject(sitemapUrl, "REQUEST ERROR", ex.Message);
+                        continue;
+                    }
                 }
-                catch (Exception ex)
-                {
-                    // push an error
-                    await PushErrorPageObject(sitemapUrl, ex.Message);
-                    continue;
-                }
+
                 // check if site map url is a sitemapindex (collection of other sitemaps)
                 if (document.DocumentElement.Name.ToLower() == "sitemapindex")
                 {
@@ -396,13 +401,18 @@ namespace Collector
             catch (WebException)
             {
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-                htmlDoc = webGet.Load(link);
+                try
+                {
+                    htmlDoc = webGet.Load(link);
+                }
+                catch (Exception ex)
+                {
+                    await PushErrorPageObject(link, "REQUEST ERROR", ex.Message);
+                    return;
+                }
+
             }
-            catch (Exception ex)
-            {
-                await PushErrorPageObject(link, ex.Message);
-                return;
-            }
+             
             var linkedPages = htmlDoc.DocumentNode.Descendants("a")
                 .Select(a => a.GetAttributeValue("href", null))
                 .Where(u => (!string.IsNullOrEmpty(u) && u.StartsWith("/")));
@@ -458,12 +468,12 @@ namespace Collector
             return sBuilder.ToString();
         }
 
-        private async Task PushErrorPageObject(string url, string error)
+        private async Task PushErrorPageObject(string url, string errorTag, string errorDetails)
         {
-            WebsitePage page = new WebsitePage(url, "ERROR", "ERROR")
+            WebsitePage page = new WebsitePage(url, errorTag, errorDetails)
             {
-                ErrorDetails = error,
-                ErrorTag = "Error Link"
+                ErrorDetails = errorDetails,
+                ErrorTag = errorTag
             };
             TableOperation insertOrReplace = TableOperation.InsertOrReplace(page);
             await websitePageTable.ExecuteAsync(insertOrReplace);

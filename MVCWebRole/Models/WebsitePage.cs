@@ -5,13 +5,14 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Web;
+using Nager.PublicSuffix;
 
 namespace MVCWebRole.Models
 {
     public class WebsitePage : TableEntity
     {
         private readonly HashAlgorithm algorithm = SHA256.Create();
+        private readonly DomainParser domainParser = new DomainParser(new WebTldRuleProvider());
 
         [Required]
         public string Title { get; set; }
@@ -53,15 +54,13 @@ namespace MVCWebRole.Models
 
         private void Initialize(string url)
         {
-            string partitionKey = new Uri(url).Authority.ToString();
-            if (partitionKey.StartsWith("www."))
-            {
-                partitionKey = partitionKey.Remove(0, 4);
-            }
+            string partitionKey = domainParser.Get(url).Domain;
             this.PartitionKey = partitionKey;
+            this.Domain = this.PartitionKey;
             this.RowKey = Generate256HashCode(url.Trim());
             this.ErrorTag = string.Empty;
             this.ErrorDetails = string.Empty;
+            this.SubDomain = domainParser.Get(url).SubDomain;
         }
 
         private string Generate256HashCode(string s)

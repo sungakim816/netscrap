@@ -20,7 +20,6 @@
   </WebRole>
   <WorkerRole name="Collector" vmsize="Small">
     <ConfigurationSettings>
-      <Setting name="Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString" />
       <Setting name="StorageConnectionString" />
     </ConfigurationSettings>
     <Endpoints>

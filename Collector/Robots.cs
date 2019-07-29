@@ -95,11 +95,14 @@ namespace Collector
             catch (WebException)
             {
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-                content = client.DownloadString(url);
-            }
-            catch (Exception ex)
-            {
-                lastError = "Error: " + ex.ToString();
+                try
+                {
+                    content = client.DownloadString(url);
+                }
+                catch (Exception ex)
+                {
+                    lastError = "Error: " + ex.ToString();
+                }
             }
             finally
             {
@@ -170,10 +173,8 @@ namespace Collector
         private string GenerateUrlRegex(string raw, string domainAuthority)
         {
             // remove * and $ at the end of the string
-            if (raw.EndsWith("*") || raw.EndsWith("$"))
-            {
-                raw = raw.Substring(0, raw.Length - 1);
-            }
+            raw = raw.Trim('*');
+            raw = raw.TrimEnd('$');
             // replace * found within (in the middle) the string with (.*)?
             // create a char array from the raw string
             char[] rawArray = raw.ToCharArray();

@@ -48,7 +48,6 @@ namespace Crawler
         private readonly string[] States = { "RUNNING", "STOPPED", "IDLE" };
         private string currenStateDescription;
         private byte currentStateNumber;
-        private DomainParser domainParser;
         // current working url, for status report purpose, role status table
         private string currentWorkingUrl;
 
@@ -75,8 +74,6 @@ namespace Crawler
             {
                 OptionFixNestedTags = true
             };
-            // domain parser
-            domainParser = new DomainParser(new WebTldRuleProvider());
             // downloader
             webGet = new HtmlWeb();
             container = new Dictionary<string, WebsitePage>();
@@ -270,6 +267,10 @@ namespace Crawler
                         Thread.Sleep(10000);
                         break;
                     case (byte)STATES.IDLE:
+                        if (container.Any())
+                        {
+                            await BatchPushToDatabase(1);
+                        }
                         currentWorkingUrl = string.Empty;
                         // wait 5s before Reading again
                         Thread.Sleep(5000);
@@ -301,22 +302,16 @@ namespace Crawler
             catch (WebException)
             {
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-                htmlDoc = webGet.Load(url);
-            }
-            catch (Exception ex)
-            {
-                // insert to the table in case of an error
-                WebsitePage errorPage = new WebsitePage(url, "REQUEST ERROR", "REQUEST ERROR")
+                try
                 {
-                    ErrorTag = "REQUEST ERROR"
-                };
-                errorPage.ErrorDetails = ex.Message;
-                errorPage.Domain = domainParser.Get(url).Domain;
-                errorPage.SubDomain = domainParser.Get(url).SubDomain;
-                TableOperation insertOrReplace = TableOperation.InsertOrReplace(errorPage);
-                await websitepageTable.ExecuteAsync(insertOrReplace);
-                // exit method immediately
-                return;
+                    htmlDoc = webGet.Load(url);
+                } catch(Exception ex)
+                {
+                    await PushErrorPageObject(url, "REQUEST ERROR", ex.Message);
+                    // exit method immediately
+                    return;
+                }
+                 
             }
             // parse html page for content
             string content = "Content";
@@ -357,13 +352,21 @@ namespace Crawler
             {
                 // retain default value content = "Content"
             }
-
+            // instantiate WebistePage Object
             WebsitePage page = new WebsitePage(url, title, content);
+            // collect partition keys, (used for counting database efficiently)
+            if (!partionkeys.ContainsKey(page.PartitionKey))
+            {
+                partionkeys.Add(page.PartitionKey, page.PartitionKey);
+                // insert to the websitepagepartionkey table
+                TableOperation insertOrReplacePartionkey = TableOperation.InsertOrReplace(new WebsitePagePartitionKey(page.PartitionKey));
+                await websitepagepartitionKeyTable.ExecuteAsync(insertOrReplacePartionkey);
+            }
             // check for parsing errors
             if (htmlDoc.ParseErrors.Any())
             {
                 // set ErrorTag
-                page.ErrorTag = "Html Parsing Error";
+                page.ErrorTag = "HTML PARSING ERROR";
                 string errors = string.Empty;
                 foreach (var error in htmlDoc.ParseErrors)
                 {
@@ -372,13 +375,26 @@ namespace Crawler
                 // set Error Details
                 page.ErrorDetails = errors;
             }
-            // check publish date/last modified date in the url
+            // check if site domain is 'bleacherreport' or 'espn'
+            if (page.Domain.Contains("bleacherreport") || page.Domain.Contains("espn"))
+            {
+                string keywords = htmlDoc.DocumentNode
+                    .SelectSingleNode("//meta[@name='keywords']")
+                    .GetAttributeValue("content", string.Empty);
+                // check if page is not about nba
+                if (!keywords.ToLower().Contains("nba"))
+                {
+                    // exit method immediately
+                    return;
+                }
+            }
+            // check publish date (in meta data tags if available)
             DateTime current = DateTime.UtcNow;
             DateTime? date = null;
             try
             {
-                // get the publish stored in meta data Note: cnn.com only!
-                var pubDate = htmlDoc.DocumentNode
+                // get the publish stored in meta data eg. (cnn.com, espn.com)
+                string pubDate = htmlDoc.DocumentNode
                     .SelectSingleNode("//meta[@name='pubdate']")
                     .GetAttributeValue("content", string.Empty);
                 date = Convert.ToDateTime(pubDate);
@@ -386,27 +402,28 @@ namespace Crawler
                 {
                     Trace.TraceInformation("Added: " + url);
                     page.PublishDate = date;
+                    // add to container
                     container.Add(key, page);
                 }
             }
             catch (Exception)
             {
-                // if publish date is not present, add it immediately to the container
+                // if publish date is not present, just add to container
                 container.Add(key, page);
-            }
-            var domainName = domainParser.Get(url);
-            page.Domain = domainName.Domain;
-            page.SubDomain = domainName.SubDomain;
-            // collect partition keys
-            if (!partionkeys.ContainsKey(page.PartitionKey))
-            {
-                partionkeys.Add(page.PartitionKey, page.PartitionKey);
-                // insert to the websitepagepartionkey table
-                TableOperation insertOrReplacePartionkey = TableOperation.InsertOrReplace(new WebsitePagePartitionKey(page.PartitionKey));
-                await websitepagepartitionKeyTable.ExecuteAsync(insertOrReplacePartionkey);
             }
             // wait for n website page entities before pushing to the Table
             await BatchPushToDatabase(minimumWebSiteCount);
+        }
+
+        private async Task PushErrorPageObject(string url, string errorTag, string errorDetails)
+        {
+            WebsitePage page = new WebsitePage(url, errorTag, errorDetails)
+            {
+                ErrorDetails = errorDetails,
+                ErrorTag = errorTag
+            };
+            TableOperation insertOrReplace = TableOperation.InsertOrReplace(page);
+            await websitepageTable.ExecuteAsync(insertOrReplace);
         }
 
         private async Task BatchPushToDatabase(int min)
