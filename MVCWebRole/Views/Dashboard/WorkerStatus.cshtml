@@ -23,7 +23,7 @@
                                 <small>Mem:&nbsp;</small>
                                 <div class="progress">
                                     @{long percent_memory = Convert.ToInt16(Convert.ToDouble(worker.WorkingMem) / Convert.ToDouble(worker.TotalMem) * 100);}
-                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: @percent_memory" aria-valuenow=@percent_memory.ToString() aria-valuemin="0" aria-valuemax="100">@percent_memory%</div>
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: @percent_memory%" aria-valuenow=@percent_memory.ToString() aria-valuemin="0" aria-valuemax="100">@percent_memory%</div>
                                 </div>
                                 <div class="small p-2 text-decoration-none d-inline-block text-truncate" style="max-width:32em;"
                                       title="@worker.CurrentWorkingUrl">
