@@ -28,8 +28,8 @@ namespace Collector
         private CloudStorageAccount storageAccount;
 
         private CloudTableClient tableClient;
-        private CloudTable websitePageTable;
         private CloudTable roleStatusTable;
+        private CloudTable errorTable;
 
         private CloudQueueClient queueClient;
         private CloudQueue urlQueue;
@@ -84,8 +84,8 @@ namespace Collector
             urlList = new Dictionary<string, string>();
             // Initialize Table (WebsitePage Table)
             tableClient = storageAccount.CreateCloudTableClient();
-            websitePageTable = tableClient.GetTableReference("websitepage");
             roleStatusTable = tableClient.GetTableReference("rolestatus");
+            errorTable = tableClient.GetTableReference("ErrorTable");
             // Initialize Queue (UrlToCrawl Queue)
             queueClient = storageAccount.CreateCloudQueueClient();
             urlQueue = queueClient.GetQueueReference("urlstocrawl");
@@ -97,11 +97,11 @@ namespace Collector
             // Create robots.txt parser
             robotTxtParser = new Robots();
             // create if queues and tables does not exists
-            websitePageTable.CreateIfNotExists();
-            roleStatusTable.CreateIfNotExists();
-            urlQueue.CreateIfNotExists();
-            seedUrlQueue.CreateIfNotExists();
-            commandQueue.CreateIfNotExists();
+            roleStatusTable.CreateIfNotExistsAsync();
+            urlQueue.CreateIfNotExistsAsync();
+            seedUrlQueue.CreateIfNotExistsAsync();
+            commandQueue.CreateIfNotExistsAsync();
+            errorTable.CreateIfNotExistsAsync();
             Trace.TraceInformation("Url Collector Worker has been Initialize");
             webGet = new HtmlWeb();
             htmlDoc = new HtmlDocument();
@@ -412,7 +412,7 @@ namespace Collector
                 }
 
             }
-             
+
             var linkedPages = htmlDoc.DocumentNode.Descendants("a")
                 .Select(a => a.GetAttributeValue("href", null))
                 .Where(u => (!string.IsNullOrEmpty(u) && u.StartsWith("/")));
@@ -470,13 +470,23 @@ namespace Collector
 
         private async Task PushErrorPageObject(string url, string errorTag, string errorDetails)
         {
-            WebsitePage page = new WebsitePage(url, errorTag, errorDetails)
+            WebsitePage page = new WebsitePage
             {
+                PartitionKey = errorTag,
+                RowKey = Generate256HashCode(url),
+                Url = url,
                 ErrorDetails = errorDetails,
-                ErrorTag = errorTag
+                ErrorTag = errorTag,
+                Title = errorTag
             };
-            TableOperation insertOrReplace = TableOperation.InsertOrReplace(page);
-            await websitePageTable.ExecuteAsync(insertOrReplace);
+            TableOperation insertOrMerge = TableOperation.InsertOrMerge(page);
+            await errorTable.ExecuteAsync(insertOrMerge);
+        }
+
+        private async Task PushErrorPageObject(WebsitePage page)
+        {
+            TableOperation insertOrMerge = TableOperation.InsertOrMerge(page);
+            await errorTable.ExecuteAsync(insertOrMerge);
         }
     }
 }

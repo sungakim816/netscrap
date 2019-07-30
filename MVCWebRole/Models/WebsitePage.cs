@@ -1,11 +1,10 @@
 ﻿using Microsoft.WindowsAzure.Storage.Table;
 using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Nager.PublicSuffix;
+using System.Web;
 
 namespace MVCWebRole.Models
 {
@@ -13,6 +12,7 @@ namespace MVCWebRole.Models
     {
         private readonly HashAlgorithm algorithm = SHA256.Create();
         private readonly DomainParser domainParser = new DomainParser(new WebTldRuleProvider());
+        private string url;
 
         [Required]
         public string Title { get; set; }
@@ -24,62 +24,59 @@ namespace MVCWebRole.Models
         public string SubDomain { get; set; }
 
         [Required]
-        public string Url { get; set; }
+        public string Url
+        {
+            get
+            {
+                return url;
+            }
+            set
+            {
+                url = value;
+                Uri uri = new Uri(url);
+                Domain = domainParser.Get(uri.Authority).Domain;
+                SubDomain = domainParser.Get(uri.Authority).SubDomain;
+            }
+        }
 
         [Timestamp]
         public DateTime? PublishDate { get; set; }
 
-        public WebsitePage() { }
+        public WebsitePage()
+        {
+            this.PartitionKey = "website";
+            this.RowKey = Guid.NewGuid().ToString();
+            this.Domain = string.Empty;
+            this.SubDomain = string.Empty;
+            this.ErrorDetails = string.Empty;
+            this.ErrorTag = string.Empty;
+            this.Url = string.Empty;
+            this.PublishDate = null;
+            this.Title = "Title";
+            this.Content = "Content Preview Not Available";
+        }
 
         public string ErrorTag { get; set; }
 
         public string ErrorDetails { get; set; }
 
-        public WebsitePage(string url, string title, DateTime publishDate)
+        public WebsitePage(string partitionKey, string rowKey)
         {
-            Initialize(url);
-            this.Url = url;
-            this.PublishDate = publishDate;
-            this.Title = title;
-        }
-
-        public WebsitePage(string url, string title, string content)
-        {
-            Initialize(url);
-            this.Url = url;
-            this.PublishDate = null;
-            this.Title = title;
-            this.Content = content;
+            this.PartitionKey = HttpUtility.UrlEncode(partitionKey);
+            Initialize(rowKey);
         }
 
         private void Initialize(string url)
         {
-
-            string partitionKey;
-            string subDomain;
-            try
-            {
-                partitionKey = domainParser.Get(url).Domain;
-            }catch(Exception)
-            {
-                partitionKey = "Error Domain";
-            }
-
-            try
-            {
-               subDomain = domainParser.Get(url).SubDomain;
-            }catch(Exception)
-            {
-                subDomain = "Error SubDomain";
-            }
-
-            this.PartitionKey = partitionKey;
-            this.Domain = this.PartitionKey;
-            this.SubDomain = subDomain;
             this.RowKey = Generate256HashCode(url.Trim());
+            this.Url = url;
+            Uri uri = new Uri(url);
+            this.Domain = domainParser.Get(uri.Authority).Domain;
+            this.SubDomain = domainParser.Get(uri.Authority).SubDomain;
             this.ErrorTag = string.Empty;
             this.ErrorDetails = string.Empty;
-            
+            this.Title = "Title";
+            this.Content = "Content Preview Not Available";
         }
 
         private string Generate256HashCode(string s)

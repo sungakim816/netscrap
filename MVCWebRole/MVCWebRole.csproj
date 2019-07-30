@@ -218,6 +218,7 @@
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
+    <Compile Include="Models\DomainObject.cs" />
     <Compile Include="Models\RoleStatus.cs" />
     <Compile Include="Models\WebsitePage.cs" />
     <Compile Include="Models\WebsitePagePartitionKey.cs" />

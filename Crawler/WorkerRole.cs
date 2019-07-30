@@ -14,6 +14,9 @@ using System.Security.Cryptography;
 using System.Text;
 using MVCWebRole.Models;
 using Nager.PublicSuffix;
+using Microsoft.WindowsAzure.Storage.Blob;
+using System.IO;
+using System.Text.RegularExpressions;
 
 enum STATES { START, STOP, IDLE };
 
@@ -26,61 +29,84 @@ namespace Crawler
 
         private CloudStorageAccount storageAccount;
         private CloudTableClient tableClient;
-        private CloudTable websitepageTable;
-        private CloudTable websitepagepartitionKeyTable;
+        private CloudBlobClient blobClient;
+        private CloudBlobContainer netscrapContainer;
+        private CloudBlob stopwordsBlob;
+        private CloudTable domainTable;
+        private CloudTable errorTable;
         private CloudTable roleStatusTable;
         private CloudQueueClient queueClient;
         private CloudQueue urlQueue;
         private CloudQueue commandQueue;
         private HtmlDocument htmlDoc;
+        private char[] disallowedCharacters;
         HtmlWeb webGet;
 
         private PerformanceCounter cpuCounter;
 
         // Container for Website pages to be inserted to the Table
-        private Dictionary<string, WebsitePage> container;
-        private Dictionary<string, string> partionkeys;
-        private TableBatchOperation batchInsert;
+        private List<WebsitePage> container;
         private RoleStatus workerStatus;
         private readonly HashAlgorithm algorithm = SHA256.Create();
-        private readonly int minimumWebSiteCount = 30;
+        private readonly int minimumWebSiteCount = 50;
         private string instanceId;
         private readonly string[] States = { "RUNNING", "STOPPED", "IDLE" };
         private string currenStateDescription;
         private byte currentStateNumber;
         // current working url, for status report purpose, role status table
         private string currentWorkingUrl;
+        private Uri uri;
+        private Dictionary<string, string> domainDictionary;
+        private readonly DomainParser domainParser = new DomainParser(new WebTldRuleProvider());
+        private List<string> stopwords;
 
         private void Initialize()
         {
             storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
             tableClient = storageAccount.CreateCloudTableClient();
             queueClient = storageAccount.CreateCloudQueueClient();
-
-            // Initialize all tables and queues
-            // Create if not exist
-            websitepageTable = tableClient.GetTableReference("websitepage");
-            websitepagepartitionKeyTable = tableClient.GetTableReference("websitepagepartitionkey");
-            roleStatusTable = tableClient.GetTableReference("rolestatus");
-            websitepageTable.CreateIfNotExists();
-            websitepagepartitionKeyTable.CreateIfNotExists();
-            roleStatusTable.CreateIfNotExists();
+            blobClient = storageAccount.CreateCloudBlobClient();
+            stopwords = new List<string>();
+            domainDictionary = new Dictionary<string, string>();
+            // Initialize all tables and queues and blobs
+            // tables
+            domainTable = tableClient.GetTableReference("DomainTable");
+            errorTable = tableClient.GetTableReference("ErrorTable");
+            roleStatusTable = tableClient.GetTableReference("RoleStatus");
+            // queues
             urlQueue = queueClient.GetQueueReference("urlstocrawl");
             commandQueue = queueClient.GetQueueReference("command");
+            // blobs
+            netscrapContainer = blobClient.GetContainerReference("netscrap");
+            // Create if not exist
+            // tables
+            domainTable.CreateIfNotExists();
+            roleStatusTable.CreateIfNotExists();
+            errorTable.CreateIfNotExistsAsync();
+            // queues
             urlQueue.CreateIfNotExists();
             commandQueue.CreateIfNotExists();
+            // blobs
+            netscrapContainer.CreateIfNotExistsAsync();
+            // stopwords blob
+            stopwordsBlob = netscrapContainer.GetBlockBlobReference("stopwords.csv");
+            StreamReader streamReader = new StreamReader(stopwordsBlob.OpenRead());
+            string line;
+            // stop word lists
+            while ((line = streamReader.ReadLine()) != null)
+            {
+                stopwords.Add(line.ToLower());
+            }
             // html document parser
             htmlDoc = new HtmlDocument()
             {
                 OptionFixNestedTags = true
             };
+            disallowedCharacters = new[] { '?', ',', ':', ';' };
             // downloader
             webGet = new HtmlWeb();
-            container = new Dictionary<string, WebsitePage>();
-            partionkeys = new Dictionary<string, string>();
-            batchInsert = new TableBatchOperation();
+            container = new List<WebsitePage>();
             instanceId = RoleEnvironment.CurrentRoleInstance.Id;
-
             currentStateNumber = (byte)STATES.STOP;
             currenStateDescription = States[currentStateNumber];
             currentWorkingUrl = string.Empty;
@@ -156,7 +182,6 @@ namespace Crawler
                 if (!urlQueueCount.HasValue || urlQueueCount.Value == 0)
                 {
                     currentStateNumber = (byte)STATES.IDLE;
-
                 }
                 else
                 {
@@ -232,7 +257,6 @@ namespace Crawler
                             string url = string.Empty;
                             try
                             {
-                                // get a url to crawl from the queue
                                 retrieveUrl = urlQueue.GetMessage();
                                 url = retrieveUrl.AsString;
                             }
@@ -250,7 +274,7 @@ namespace Crawler
                                 }
                                 catch (Exception)
                                 {
-                                    Trace.TraceInformation("Another Process deleted this queue message");
+
                                 }
                             }
                             // wait 0.5s before Reading again
@@ -258,20 +282,22 @@ namespace Crawler
                         }
                         break;
                     case (byte)STATES.STOP:
+                        currentWorkingUrl = string.Empty;
+                        // insert remaining website page objects to database
                         if (container.Any())
                         {
-                            await BatchPushToDatabase(1);
+                            await BatchInsertToDatabase(1);
                         }
-                        currentWorkingUrl = string.Empty;
                         // wait 10s before Reading again
                         Thread.Sleep(10000);
                         break;
                     case (byte)STATES.IDLE:
+                        currentWorkingUrl = string.Empty;
+                        // insert remaining website page objects to database
                         if (container.Any())
                         {
-                            await BatchPushToDatabase(1);
+                            await BatchInsertToDatabase(1);
                         }
-                        currentWorkingUrl = string.Empty;
                         // wait 5s before Reading again
                         Thread.Sleep(5000);
                         break;
@@ -288,12 +314,6 @@ namespace Crawler
                 return;
             }
             currentWorkingUrl = url;
-            // encode the url
-            string key = Generate256HashCode(url);
-            if (container.ContainsKey(key)) // check if container has the website page already
-            {
-                return;
-            }
             // download html page
             try
             {
@@ -308,17 +328,28 @@ namespace Crawler
                 }
                 catch (Exception ex)
                 {
-                    await PushErrorPageObject(url, "REQUEST ERROR", ex.Message);
+                    WebsitePage page = new WebsitePage
+                    {
+                        Url = url,
+                        ErrorTag = "REQUEST ERROR",
+                        PartitionKey = "REQUEST ERROR",
+                        RowKey = Generate256HashCode(url),
+                        Title = "REQUEST ERROR",
+                        ErrorDetails = ex.Message
+                    };
+                    await PushErrorPageObject(page);
                     // exit method immediately
                     return;
                 }
 
             }
-            // parse html page for content
-            string content = "Content";
+            // PARSE HTML FOR CONTENT
+            // get domain name
+            uri = new Uri(url);
+            string urlDomain = domainParser.Get(uri.Authority).Domain;
+            // parse page title
             string title = "Title";
             HtmlNode titleNode;
-            // parsing page title
             titleNode = htmlDoc.DocumentNode.SelectSingleNode("//title");
             if (titleNode != null && !string.IsNullOrEmpty(titleNode.InnerText))
             {
@@ -332,7 +363,8 @@ namespace Crawler
                     title = HtmlEntity.DeEntitize(titleNode.InnerText.Trim());
                 }
             }
-            // parsing body content
+            // parse body content
+            string content = "Content Preview Not Available";
             try
             {
                 IEnumerable<string> words = htmlDoc.DocumentNode?
@@ -348,36 +380,63 @@ namespace Crawler
                     content += c;
                     content += " ";
                 }
+                content = content.TrimEnd(' ');
             }
             catch (Exception)
             {
                 // retain default value content = "Content"
             }
-            // instantiate WebistePage Object
-            WebsitePage page = new WebsitePage(url, title, content);
-            // collect partition keys, (used for counting database efficiently)
-            if (!partionkeys.ContainsKey(page.PartitionKey))
-            {
-                partionkeys.Add(page.PartitionKey, page.PartitionKey);
-                // insert to the websitepagepartionkey table
-                TableOperation insertOrReplacePartionkey = TableOperation.InsertOrReplace(new WebsitePagePartitionKey(page.PartitionKey));
-                await websitepagepartitionKeyTable.ExecuteAsync(insertOrReplacePartionkey);
-            }
-            // check for parsing errors
+            // check for any errors
+            string errorTag = string.Empty;
+            string errorDetails = string.Empty;
             if (htmlDoc.ParseErrors.Any())
             {
                 // set ErrorTag
-                page.ErrorTag = "HTML PARSING ERROR";
+                errorTag = "HTML PARSING ERROR";
                 string errors = string.Empty;
                 foreach (var error in htmlDoc.ParseErrors)
                 {
                     errors += error.Reason + ";";
                 }
                 // set Error Details
-                page.ErrorDetails = errors;
+                errorDetails = errors;
+                WebsitePage errorPage = new WebsitePage()
+                {
+                    Title = title,
+                    Url = url,
+                    RowKey = Generate256HashCode(url),
+                    PartitionKey = errorTag,
+                    Content = content,
+                    ErrorTag = errorTag,
+                    ErrorDetails = errorDetails,
+                    PublishDate = null
+                };
+                await PushErrorPageObject(errorPage);
             }
+            // check publish date (in meta data tags if available)
+            DateTime current = DateTime.UtcNow;
+            DateTime? publishDate;
+            try
+            {
+                // get the publish stored in meta data eg. (cnn.com, espn.com)
+                string pubDate = htmlDoc.DocumentNode
+                    .SelectSingleNode("//meta[@name='pubdate']")
+                    .GetAttributeValue("content", string.Empty);
+                publishDate = Convert.ToDateTime(pubDate);
+                if (!(publishDate.Value.Year == current.Year && (current.Month - publishDate.Value.Month <= 3)))
+                {
+                    // article is too old, it will not be added to the database
+                    Trace.TraceInformation("Article is too old: " + url);
+                    return;
+                }
+            }
+            catch (Exception)
+            {
+                publishDate = null;
+            }
+
             // check if site domain is 'bleacherreport' or 'espn'
-            if (page.Domain.Contains("bleacherreport") || page.Domain.Contains("espn"))
+            if (urlDomain.Contains("bleacherreport") || urlDomain.Contains("espn"))
             {
                 string keywords = htmlDoc.DocumentNode
                     .SelectSingleNode("//meta[@name='keywords']")
@@ -389,65 +448,101 @@ namespace Crawler
                     return;
                 }
             }
-            // check publish date (in meta data tags if available)
-            DateTime current = DateTime.UtcNow;
-            DateTime? date = null;
-            try
+            // if all tests passed,
+            // add domain name to the 'domain table', and 'domainDictionary'
+            if (!domainDictionary.ContainsKey(urlDomain))
             {
-                // get the publish stored in meta data eg. (cnn.com, espn.com)
-                string pubDate = htmlDoc.DocumentNode
-                    .SelectSingleNode("//meta[@name='pubdate']")
-                    .GetAttributeValue("content", string.Empty);
-                date = Convert.ToDateTime(pubDate);
-                if (date.Value.Year == current.Year && (current.Month - date.Value.Month <= 3))
+                domainDictionary.Add(urlDomain, urlDomain);
+                DomainObject domainObject = new DomainObject(urlDomain);
+                TableOperation insertOrMerge = TableOperation.InsertOrMerge(domainObject);
+                await domainTable.ExecuteAsync(insertOrMerge);
+            }
+            // create a table using url domain as a name
+            CloudTable table = tableClient.GetTableReference(urlDomain);
+            await table.CreateIfNotExistsAsync();
+            // split the title in to keywords
+            var titleKeywords = title
+                .ToLower()
+                .Split(' ')
+                .Where(s => !stopwords.Contains(s.Trim()))
+                .Select(s => s.Trim())
+                .Where(s => s.Length >= 2);
+            // create website page object, use keywords as partition key and add to container
+            foreach (string word in titleKeywords)
+            {
+                string keyword = word.ToLower();
+                keyword = new String(keyword.ToCharArray().Where(c => !disallowedCharacters.Contains(c)).ToArray());
+                keyword = keyword.Replace(" ", "");
+                if (keyword.IndexOf("'s") >= 0)
                 {
-                    Trace.TraceInformation("Added: " + url);
-                    page.PublishDate = date;
-                    // add to container
-                    container.Add(key, page);
+                    // remove "'s"
+                    keyword = keyword.Remove(keyword.IndexOf("'s"), 2).Trim();
                 }
+                // keyword = partition key, url = rowkey,(hashed)
+                WebsitePage page = new WebsitePage(keyword, url)
+                {
+                    ErrorTag = errorTag,
+                    ErrorDetails = errorDetails,
+                    PublishDate = publishDate,
+                    Title = title,
+                    Content = content
+                };
+                container.Add(page);
             }
-            catch (Exception)
-            {
-                // if publish date is not present, just add to container
-                container.Add(key, page);
-            }
-            // wait for n website page entities before pushing to the Table
-            await BatchPushToDatabase(minimumWebSiteCount);
+            await BatchInsertToDatabase(minimumWebSiteCount);
         }
 
-        private async Task PushErrorPageObject(string url, string errorTag, string errorDetails)
+        private async Task PushErrorPageObject(WebsitePage page)
         {
-            WebsitePage page = new WebsitePage(url, errorTag, errorDetails)
-            {
-                ErrorDetails = errorDetails,
-                ErrorTag = errorTag
-            };
-            TableOperation insertOrReplace = TableOperation.InsertOrReplace(page);
-            await websitepageTable.ExecuteAsync(insertOrReplace);
+            TableOperation insertOrMerge = TableOperation.InsertOrMerge(page);
+            await errorTable.ExecuteAsync(insertOrMerge);
         }
 
-        private async Task BatchPushToDatabase(int min)
+        private async Task BatchInsertToDatabase(int min)
         {
             if (!(container.Count >= min))
             {
                 return;
             }
-            foreach (string partitionKey in partionkeys.Values)
+            Trace.TraceInformation("Batch Insert Operation Initiated");
+            var tableNames = container.Select(page => page.Domain).Distinct();
+            foreach (var tableName in tableNames)
             {
-                Trace.TraceInformation("Batch InsertOrReplace Initiated..");
-                foreach (var p in container.Values.Where(c => c.PartitionKey.Equals(partitionKey)))
-                {
-                    batchInsert.InsertOrReplace(p);
-                }
-                if (batchInsert.Count() != 0)
-                {
-                    await websitepageTable.ExecuteBatchAsync(batchInsert);
-                }
-                batchInsert.Clear();
+                await BatchInsertViaTableName(tableName, container);
             }
             container.Clear();
         }
+
+        private async Task BatchInsertViaTableName(string tName, List<WebsitePage> list)
+        {
+            CloudTable table = tableClient.GetTableReference(tName);
+            // create if not exists
+            await table.CreateIfNotExistsAsync();
+            // get all websitepage objects with similar tablename (domain) distinct
+            var pages = list
+                .Where(page => page.Domain.Equals(tName))
+                .GroupBy(page => page.RowKey)
+                .Select(page => page.First());
+            // get all distinct partitionkeys, from the list (keywords) distinct
+            var partitionkeys = pages.Select(page => page.PartitionKey).Distinct();
+            // create a table batch operation object
+            TableBatchOperation batchInsertOperation = new TableBatchOperation();
+            // iterate partitionkeys
+            foreach (string key in partitionkeys)
+            {
+                // iterate through websitepage object lists
+                foreach (WebsitePage page in pages)
+                {
+                    if (page.PartitionKey.Equals(key))
+                    {
+                        batchInsertOperation.InsertOrMerge(page);
+                    }
+                }
+                await table.ExecuteBatchAsync(batchInsertOperation);
+                batchInsertOperation.Clear();
+            }
+        }
+
         private string Generate256HashCode(string s)
         {
             byte[] data = algorithm.ComputeHash(Encoding.UTF8.GetBytes(s));
