@@ -526,9 +526,14 @@ namespace Crawler
             foreach (string key in partitionkeys)
             {
                 // iterate through websitepage object lists with similar partition keys
+                Dictionary<string, string> rowkeys = new Dictionary<string, string>();
                 foreach (WebsitePage page in pages.Where(p => p.PartitionKey.Equals(key)))
                 {
-                     batchInsertOperation.InsertOrMerge(page);
+                    if(!rowkeys.ContainsKey(page.RowKey))
+                    {
+                        batchInsertOperation.InsertOrMerge(page);
+                        rowkeys.Add(page.RowKey, page.RowKey);
+                    }                
                 }
                 await table.ExecuteBatchAsync(batchInsertOperation);
                 batchInsertOperation.Clear();
