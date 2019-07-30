@@ -22,8 +22,9 @@ namespace MVCWebRole.Controllers
         private readonly CloudQueue seedUrlQueue;
         private readonly CloudQueueClient queueClient;
 
-        private readonly CloudTable websitePageTable;
-        private readonly CloudTable websitePagePartitionKeyTable;
+        private readonly CloudTable websitePageMasterTable;
+        private readonly CloudTable errorTable;
+        private readonly CloudTable domainTable;
         private readonly CloudTable roleStatusTable;
         private readonly CloudTableClient tableClient;
 
@@ -37,15 +38,18 @@ namespace MVCWebRole.Controllers
             urlQueue = queueClient.GetQueueReference("urlstocrawl");
             seedUrlQueue = queueClient.GetQueueReference("seedurls");
 
-            websitePageTable = tableClient.GetTableReference("websitepage");
-            websitePagePartitionKeyTable = tableClient.GetTableReference("websitepagepartitionkey");
+            websitePageMasterTable = tableClient.GetTableReference("WebsitePageMasterTable");
+            errorTable = tableClient.GetTableReference("ErrorTable");
+            domainTable = tableClient.GetTableReference("DomainTable");
             roleStatusTable = tableClient.GetTableReference("rolestatus");
+
             commandQueue.CreateIfNotExistsAsync();
-            websitePageTable.CreateIfNotExistsAsync();
+            errorTable.CreateIfNotExistsAsync();
+            websitePageMasterTable.CreateIfNotExistsAsync();
             urlQueue.CreateIfNotExistsAsync();
             seedUrlQueue.CreateIfNotExistsAsync();
             roleStatusTable.CreateIfNotExists();
-            websitePagePartitionKeyTable.CreateIfNotExistsAsync();
+            domainTable.CreateIfNotExistsAsync();
         }
 
         // GET: Dashboard
@@ -76,7 +80,7 @@ namespace MVCWebRole.Controllers
                     TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, rowkey)
                     )
                 ).Take(1);
-            var queryResult = websitePageTable.ExecuteQuery(query);
+            var queryResult = websitePageMasterTable.ExecuteQuery(query);
             WebsitePage result = queryResult.FirstOrDefault();
             return View(result);
         }
@@ -92,7 +96,7 @@ namespace MVCWebRole.Controllers
             }
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
                 .Select(new List<string> { "Timestamp", "Title", "PartitionKey", "RowKey", "Domain", "SubDomain" });
-            var websitepages = websitePageTable.ExecuteQuery(rangeQuery);
+            var websitepages = websitePageMasterTable.ExecuteQuery(rangeQuery);
             websitepages = websitepages.OrderByDescending(x => x.Timestamp).Take(count.Value);
             return View(websitepages);
         }
@@ -104,12 +108,12 @@ namespace MVCWebRole.Controllers
 
         public async Task<int?> IndexedWebsiteCount()
         {
-            var keys = websitePagePartitionKeyTable
+            List<string> keys = domainTable
                 .ExecuteQuery(new TableQuery<WebsitePagePartitionKey>()
                 .Select(new List<string> { "PartitionKey" }))
                 .Select(x => x.PartitionKey)
                 .ToList();
-            return await CountTableRows(websitePageTable, keys);
+            return await CountTableRows(websitePageMasterTable, keys);
         }
 
         protected async Task<int?> GetCountOfEntitiesInPartition(CloudTable table, string partitionKey)
@@ -230,8 +234,19 @@ namespace MVCWebRole.Controllers
             bool response;
             try
             {
-                await websitePageTable.DeleteIfExistsAsync();
-                await websitePageTable.CreateIfNotExistsAsync();
+                await websitePageMasterTable.DeleteIfExistsAsync();
+                await websitePageMasterTable.CreateIfNotExistsAsync();
+                List<string> tableNames = domainTable
+                .ExecuteQuery(new TableQuery<WebsitePagePartitionKey>()
+                .Select(new List<string> { "PartitionKey" }))
+                .Select(x => x.PartitionKey)
+                .ToList();
+                foreach(string tableName in tableNames)
+                {
+                    CloudTable table = tableClient.GetTableReference(tableName);
+                    await table.DeleteIfExistsAsync();
+                    await table.CreateIfNotExistsAsync();
+                }
                 response = true;
             }
             catch (Exception)
@@ -279,10 +294,8 @@ namespace MVCWebRole.Controllers
             {
                 pageNumber = 1;
             }
-            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
-                .Where(TableQuery.GenerateFilterCondition("ErrorTag", QueryComparisons.NotEqual, string.Empty))
-                .Select(new List<string> { "Timestamp", "Title", "PartitionKey", "RowKey", "Domain", "SubDomain", "ErrorTag", "ErrorDetails", "Url" });
-            var websitepages = websitePageTable.ExecuteQuery(rangeQuery);
+            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>();      
+            var websitepages = errorTable.ExecuteQuery(rangeQuery);
             websitepages = websitepages.OrderByDescending(x => x.Timestamp);
             return PartialView(websitepages.ToPagedList((int)pageNumber, pageSize));
         }

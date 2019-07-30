@@ -48,9 +48,8 @@ namespace MVCWebRole.Models
             this.RowKey = Guid.NewGuid().ToString();
             this.Domain = string.Empty;
             this.SubDomain = string.Empty;
-            this.ErrorDetails = string.Empty;
-            this.ErrorTag = string.Empty;
-            this.Url = string.Empty;
+            this.ErrorDetails = null;
+            this.ErrorTag = null;
             this.PublishDate = null;
             this.Title = "Title";
             this.Content = "Content Preview Not Available";
@@ -70,9 +69,6 @@ namespace MVCWebRole.Models
         {
             this.RowKey = Generate256HashCode(url.Trim());
             this.Url = url;
-            Uri uri = new Uri(url);
-            this.Domain = domainParser.Get(uri.Authority).Domain;
-            this.SubDomain = domainParser.Get(uri.Authority).SubDomain;
             this.ErrorTag = string.Empty;
             this.ErrorDetails = string.Empty;
             this.Title = "Title";

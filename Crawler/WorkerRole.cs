@@ -32,6 +32,8 @@ namespace Crawler
         private CloudBlobClient blobClient;
         private CloudBlobContainer netscrapContainer;
         private CloudBlob stopwordsBlob;
+
+        private CloudTable websitePageMasterTable;
         private CloudTable domainTable;
         private CloudTable errorTable;
         private CloudTable roleStatusTable;
@@ -71,6 +73,7 @@ namespace Crawler
             // Initialize all tables and queues and blobs
             // tables
             domainTable = tableClient.GetTableReference("DomainTable");
+            websitePageMasterTable = tableClient.GetTableReference("WebsitePageMasterTable");
             errorTable = tableClient.GetTableReference("ErrorTable");
             roleStatusTable = tableClient.GetTableReference("RoleStatus");
             // queues
@@ -83,6 +86,7 @@ namespace Crawler
             domainTable.CreateIfNotExists();
             roleStatusTable.CreateIfNotExists();
             errorTable.CreateIfNotExistsAsync();
+            websitePageMasterTable.CreateIfNotExists();
             // queues
             urlQueue.CreateIfNotExists();
             commandQueue.CreateIfNotExists();
@@ -313,6 +317,7 @@ namespace Crawler
             {
                 return;
             }
+            WebsitePage MasterWebsitePageObject = new WebsitePage();
             currentWorkingUrl = url;
             // download html page
             try
@@ -328,16 +333,13 @@ namespace Crawler
                 }
                 catch (Exception ex)
                 {
-                    WebsitePage page = new WebsitePage
-                    {
-                        Url = url,
-                        ErrorTag = "REQUEST ERROR",
-                        PartitionKey = "REQUEST ERROR",
-                        RowKey = Generate256HashCode(url),
-                        Title = "REQUEST ERROR",
-                        ErrorDetails = ex.Message
-                    };
-                    await PushErrorPageObject(page);
+                    MasterWebsitePageObject.Url = url;
+                    MasterWebsitePageObject.ErrorTag = "REQUEST ERROR";
+                    MasterWebsitePageObject.PartitionKey = "REQUEST ERROR";
+                    MasterWebsitePageObject.RowKey = Generate256HashCode(url);
+                    MasterWebsitePageObject.Title = "REQUEST ERROR";
+                    MasterWebsitePageObject.ErrorDetails = ex.Message;
+                    await PushErrorPageObject(MasterWebsitePageObject);
                     // exit method immediately
                     return;
                 }
@@ -363,6 +365,10 @@ namespace Crawler
                     title = HtmlEntity.DeEntitize(titleNode.InnerText.Trim());
                 }
             }
+            MasterWebsitePageObject.Title = title;
+            MasterWebsitePageObject.Url = url;
+            MasterWebsitePageObject.PartitionKey = urlDomain;
+            MasterWebsitePageObject.RowKey = Generate256HashCode(url);
             // parse body content
             string content = "Content Preview Not Available";
             try
@@ -386,6 +392,7 @@ namespace Crawler
             {
                 // retain default value content = "Content"
             }
+            MasterWebsitePageObject.Content = content;
             // check for any errors
             string errorTag = string.Empty;
             string errorDetails = string.Empty;
@@ -399,19 +406,9 @@ namespace Crawler
                     errors += error.Reason + ";";
                 }
                 // set Error Details
-                errorDetails = errors;
-                WebsitePage errorPage = new WebsitePage()
-                {
-                    Title = title,
-                    Url = url,
-                    RowKey = Generate256HashCode(url),
-                    PartitionKey = errorTag,
-                    Content = content,
-                    ErrorTag = errorTag,
-                    ErrorDetails = errorDetails,
-                    PublishDate = null
-                };
-                await PushErrorPageObject(errorPage);
+                MasterWebsitePageObject.ErrorTag = errorTag;
+                MasterWebsitePageObject.ErrorDetails = errors;
+                await PushErrorPageObject(MasterWebsitePageObject);
             }
             // check publish date (in meta data tags if available)
             DateTime current = DateTime.UtcNow;
@@ -434,7 +431,7 @@ namespace Crawler
             {
                 publishDate = null;
             }
-
+            MasterWebsitePageObject.PublishDate = publishDate;
             // check if site domain is 'bleacherreport' or 'espn'
             if (urlDomain.Contains("bleacherreport") || urlDomain.Contains("espn"))
             {
@@ -481,14 +478,15 @@ namespace Crawler
                 // keyword = partition key, url = rowkey,(hashed)
                 WebsitePage page = new WebsitePage(keyword, url)
                 {
-                    ErrorTag = errorTag,
-                    ErrorDetails = errorDetails,
-                    PublishDate = publishDate,
                     Title = title,
-                    Content = content
                 };
+                // add page to the container
                 container.Add(page);
             }
+            // insert master website page object to the database
+            TableOperation insertOperation = TableOperation.InsertOrMerge(MasterWebsitePageObject);
+            await websitePageMasterTable.ExecuteAsync(insertOperation);
+            // batch insert operation
             await BatchInsertToDatabase(minimumWebSiteCount);
         }
 
@@ -505,7 +503,7 @@ namespace Crawler
                 return;
             }
             Trace.TraceInformation("Batch Insert Operation Initiated");
-            var tableNames = container.Select(page => page.Domain).Distinct();
+            IEnumerable<string> tableNames = container.Select(page => page.Domain).Distinct();
             foreach (var tableName in tableNames)
             {
                 await BatchInsertViaTableName(tableName, container);
@@ -518,11 +516,8 @@ namespace Crawler
             CloudTable table = tableClient.GetTableReference(tName);
             // create if not exists
             await table.CreateIfNotExistsAsync();
-            // get all websitepage objects with similar tablename (domain) distinct
-            var pages = list
-                .Where(page => page.Domain.Equals(tName))
-                .GroupBy(page => page.RowKey)
-                .Select(page => page.First());
+            // get all websitepage objects with similar tablename (domain)
+            var pages = list.Where(page => page.Domain.Equals(tName));
             // get all distinct partitionkeys, from the list (keywords) distinct
             var partitionkeys = pages.Select(page => page.PartitionKey).Distinct();
             // create a table batch operation object
@@ -530,13 +525,10 @@ namespace Crawler
             // iterate partitionkeys
             foreach (string key in partitionkeys)
             {
-                // iterate through websitepage object lists
-                foreach (WebsitePage page in pages)
+                // iterate through websitepage object lists with similar partition keys
+                foreach (WebsitePage page in pages.Where(p => p.PartitionKey.Equals(key)))
                 {
-                    if (page.PartitionKey.Equals(key))
-                    {
-                        batchInsertOperation.InsertOrMerge(page);
-                    }
+                     batchInsertOperation.InsertOrMerge(page);
                 }
                 await table.ExecuteBatchAsync(batchInsertOperation);
                 batchInsertOperation.Clear();
