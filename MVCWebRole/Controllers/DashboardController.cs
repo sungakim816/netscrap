@@ -41,7 +41,7 @@ namespace MVCWebRole.Controllers
             websitePageMasterTable = tableClient.GetTableReference("WebsitePageMasterTable");
             errorTable = tableClient.GetTableReference("ErrorTable");
             domainTable = tableClient.GetTableReference("DomainTable");
-            roleStatusTable = tableClient.GetTableReference("rolestatus");
+            roleStatusTable = tableClient.GetTableReference("RoleStatus");
 
             commandQueue.CreateIfNotExistsAsync();
             errorTable.CreateIfNotExistsAsync();

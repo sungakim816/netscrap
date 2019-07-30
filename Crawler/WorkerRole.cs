@@ -1,22 +1,21 @@
-using System;
-using System.Diagnostics;
-using System.Linq;
-using System.Net;
-using System.Threading;
-using System.Threading.Tasks;
+using HtmlAgilityPack;
 using Microsoft.WindowsAzure.ServiceRuntime;
 using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.Queue;
 using Microsoft.WindowsAzure.Storage.Table;
-using HtmlAgilityPack;
-using System.Collections.Generic;
-using System.Security.Cryptography;
-using System.Text;
 using MVCWebRole.Models;
 using Nager.PublicSuffix;
-using Microsoft.WindowsAzure.Storage.Blob;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-using System.Text.RegularExpressions;
+using System.Linq;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 enum STATES { START, STOP, IDLE };
 
@@ -317,7 +316,7 @@ namespace Crawler
             {
                 return;
             }
-            WebsitePage MasterWebsitePageObject = new WebsitePage();
+            WebsitePage MainWebsitePageObject = new WebsitePage();
             currentWorkingUrl = url;
             // download html page
             try
@@ -333,13 +332,13 @@ namespace Crawler
                 }
                 catch (Exception ex)
                 {
-                    MasterWebsitePageObject.Url = url;
-                    MasterWebsitePageObject.ErrorTag = "REQUEST ERROR";
-                    MasterWebsitePageObject.PartitionKey = "REQUEST ERROR";
-                    MasterWebsitePageObject.RowKey = Generate256HashCode(url);
-                    MasterWebsitePageObject.Title = "REQUEST ERROR";
-                    MasterWebsitePageObject.ErrorDetails = ex.Message;
-                    await PushErrorPageObject(MasterWebsitePageObject);
+                    MainWebsitePageObject.Url = url;
+                    MainWebsitePageObject.ErrorTag = "REQUEST ERROR";
+                    MainWebsitePageObject.PartitionKey = "REQUEST ERROR";
+                    MainWebsitePageObject.RowKey = Generate256HashCode(url);
+                    MainWebsitePageObject.Title = "REQUEST ERROR";
+                    MainWebsitePageObject.ErrorDetails = ex.Message;
+                    await PushErrorPageObject(MainWebsitePageObject);
                     // exit method immediately
                     return;
                 }
@@ -365,10 +364,10 @@ namespace Crawler
                     title = HtmlEntity.DeEntitize(titleNode.InnerText.Trim());
                 }
             }
-            MasterWebsitePageObject.Title = title;
-            MasterWebsitePageObject.Url = url;
-            MasterWebsitePageObject.PartitionKey = urlDomain;
-            MasterWebsitePageObject.RowKey = Generate256HashCode(url);
+            MainWebsitePageObject.Title = title;
+            MainWebsitePageObject.Url = url;
+            MainWebsitePageObject.PartitionKey = urlDomain;
+            MainWebsitePageObject.RowKey = Generate256HashCode(url);
             // parse body content
             string content = "Content Preview Not Available";
             try
@@ -389,27 +388,9 @@ namespace Crawler
                 content = content.TrimEnd(' ');
             }
             catch (Exception)
-            {
-                // retain default value content = "Content"
-            }
-            MasterWebsitePageObject.Content = content;
-            // check for any errors
-            string errorTag = string.Empty;
-            string errorDetails = string.Empty;
-            if (htmlDoc.ParseErrors.Any())
-            {
-                // set ErrorTag
-                errorTag = "HTML PARSING ERROR";
-                string errors = string.Empty;
-                foreach (var error in htmlDoc.ParseErrors)
-                {
-                    errors += error.Reason + ";";
-                }
-                // set Error Details
-                MasterWebsitePageObject.ErrorTag = errorTag;
-                MasterWebsitePageObject.ErrorDetails = errors;
-                await PushErrorPageObject(MasterWebsitePageObject);
-            }
+            { /* retain default value content = "Content"*/ }
+
+            MainWebsitePageObject.Content = content;
             // check publish date (in meta data tags if available)
             DateTime current = DateTime.UtcNow;
             DateTime? publishDate;
@@ -431,64 +412,69 @@ namespace Crawler
             {
                 publishDate = null;
             }
-            MasterWebsitePageObject.PublishDate = publishDate;
-            // check if site domain is 'bleacherreport' or 'espn'
-            if (urlDomain.Contains("bleacherreport") || urlDomain.Contains("espn"))
+            MainWebsitePageObject.PublishDate = publishDate;
+            if (urlDomain.Contains("bleacherreport") || urlDomain.Contains("espn"))  // check if site domain is 'bleacherreport' or 'espn'
             {
                 string keywords = htmlDoc.DocumentNode
                     .SelectSingleNode("//meta[@name='keywords']")
                     .GetAttributeValue("content", string.Empty);
-                // check if page is not about nba
-                if (!keywords.ToLower().Contains("nba"))
+                if (!keywords.ToLower().Contains("nba")) // check if page is not about nba
                 {
-                    // exit method immediately
-                    return;
+                    return;  // exit method immediately
                 }
             }
-            // if all tests passed,
-            // add domain name to the 'domain table', and 'domainDictionary'
-            if (!domainDictionary.ContainsKey(urlDomain))
+            // check for any errors
+            string errorTag = string.Empty;
+            string errorDetails = string.Empty;
+            if (htmlDoc.ParseErrors.Any())
+            {
+                errorTag = "HTML PARSING ERROR"; // set ErrorTag
+                string errors = string.Empty;
+                foreach (var error in htmlDoc.ParseErrors)
+                {
+                    errors += error.Reason + ";";
+                }
+                MainWebsitePageObject.ErrorTag = errorTag;
+                MainWebsitePageObject.ErrorDetails = errorDetails;
+                await PushErrorPageObject(MainWebsitePageObject); // push to ErrorTable
+            }
+
+            // if all tests passed,          
+            if (!domainDictionary.ContainsKey(urlDomain))  // add domain name to the 'domain table', and 'domainDictionary'
             {
                 domainDictionary.Add(urlDomain, urlDomain);
                 DomainObject domainObject = new DomainObject(urlDomain);
                 TableOperation insertOrMerge = TableOperation.InsertOrMerge(domainObject);
                 await domainTable.ExecuteAsync(insertOrMerge);
             }
-            // create a table using url domain as a name
-            CloudTable table = tableClient.GetTableReference(urlDomain);
-            await table.CreateIfNotExistsAsync();
-            // split the title in to keywords
-            var titleKeywords = title
+            CloudTable table = tableClient.GetTableReference(urlDomain);  // create a table using url domain as a name
+            await table.CreateIfNotExistsAsync(); // create if does not exist
+            var titleKeywords = title  // split the title in to keywords
                 .ToLower()
                 .Split(' ')
                 .Where(s => !stopwords.Contains(s.Trim()))
                 .Select(s => s.Trim())
                 .Where(s => s.Length >= 2);
-            // create website page object, use keywords as partition key and add to container
-            foreach (string word in titleKeywords)
+            foreach (string word in titleKeywords) // create website page object, use keywords as partition key and add to container
             {
-                string keyword = word.ToLower();
+                string keyword = word.ToLower(); // lower the keyword
                 keyword = new String(keyword.ToCharArray().Where(c => !disallowedCharacters.Contains(c)).ToArray());
                 keyword = keyword.Replace(" ", "");
                 if (keyword.IndexOf("'s") >= 0)
                 {
-                    // remove "'s"
-                    keyword = keyword.Remove(keyword.IndexOf("'s"), 2).Trim();
+                    keyword = keyword.Remove(keyword.IndexOf("'s"), 2).Trim();  // remove "'s"
                 }
-                // keyword = partition key, url = rowkey,(hashed)
-                WebsitePage page = new WebsitePage(keyword, url)
+                WebsitePage page = new WebsitePage(keyword, url) // keyword = partition key, url = rowkey,(hashed)
                 {
                     Title = title,
                 };
-                // add page to the container
-                container.Add(page);
+                container.Add(page); // add page to the container
             }
-            // insert master website page object to the database
-            TableOperation insertOperation = TableOperation.InsertOrMerge(MasterWebsitePageObject);
+            TableOperation insertOperation = TableOperation.InsertOrMerge(MainWebsitePageObject);  // insert main website page object to the database
             await websitePageMasterTable.ExecuteAsync(insertOperation);
-            // batch insert operation
-            await BatchInsertToDatabase(minimumWebSiteCount);
+            await BatchInsertToDatabase(minimumWebSiteCount);  // batch insert operation
         }
+
 
         private async Task PushErrorPageObject(WebsitePage page)
         {
@@ -503,7 +489,7 @@ namespace Crawler
                 return;
             }
             Trace.TraceInformation("Batch Insert Operation Initiated");
-            IEnumerable<string> tableNames = container.Select(page => page.Domain).Distinct();
+            IEnumerable<string> tableNames = container.Select(page => page.Domain).Distinct(); // get all distinct table names from all website page objects
             foreach (var tableName in tableNames)
             {
                 await BatchInsertViaTableName(tableName, container);
@@ -514,44 +500,35 @@ namespace Crawler
         private async Task BatchInsertViaTableName(string tName, List<WebsitePage> list)
         {
             CloudTable table = tableClient.GetTableReference(tName);
-            // create if not exists
-            await table.CreateIfNotExistsAsync();
-            // get all websitepage objects with similar tablename (domain)
-            var pages = list.Where(page => page.Domain.Equals(tName));
-            // get all distinct partitionkeys, from the list (keywords) distinct
-            var partitionkeys = pages.Select(page => page.PartitionKey).Distinct();
-            // create a table batch operation object
-            TableBatchOperation batchInsertOperation = new TableBatchOperation();
-            // iterate partitionkeys
-            foreach (string key in partitionkeys)
+            await table.CreateIfNotExistsAsync();  // create if not exist
+            var pages = list.Where(page => page.Domain.Equals(tName));   // get all websitepage objects with similar tablename (domain)         
+            var partitionkeys = pages.Select(page => page.PartitionKey).Distinct();  // get all distinct partitionkeys, from the list (keywords) distinct       
+            TableBatchOperation batchInsertOperation = new TableBatchOperation();   // create a table batch operation object     
+            foreach (string key in partitionkeys)  // iterate partitionkeys
             {
-                // iterate through websitepage object lists with similar partition keys
-                Dictionary<string, string> rowkeys = new Dictionary<string, string>();
+                Dictionary<string, string> rowkeys = new Dictionary<string, string>(); // iterate through websitepage object lists with similar partition keys
                 foreach (WebsitePage page in pages.Where(p => p.PartitionKey.Equals(key)))
                 {
-                    if(!rowkeys.ContainsKey(page.RowKey))
+                    if (!rowkeys.ContainsKey(page.RowKey)) // check duplicate items,
                     {
                         batchInsertOperation.InsertOrMerge(page);
                         rowkeys.Add(page.RowKey, page.RowKey);
-                    }                
+                    }
                 }
                 await table.ExecuteBatchAsync(batchInsertOperation);
                 batchInsertOperation.Clear();
             }
         }
 
-        private string Generate256HashCode(string s)
+        private string Generate256HashCode(string s) // used for hashing string
         {
             byte[] data = algorithm.ComputeHash(Encoding.UTF8.GetBytes(s));
             StringBuilder sBuilder = new StringBuilder();
-            // Loop through each byte of the hashed data 
-            // and format each one as a hexadecimal string.
-            for (int i = 0; i < data.Length; i++)
+            for (int i = 0; i < data.Length; i++) // Loop through each byte of the hashed data and format each one as a hexadecimal string
             {
                 sBuilder.Append(data[i].ToString("x2"));
             }
-            // Return the hexadecimal string.
-            return sBuilder.ToString();
+            return sBuilder.ToString();  // Return the hexadecimal string.
         }
     }
 }

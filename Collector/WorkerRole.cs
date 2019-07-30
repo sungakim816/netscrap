@@ -53,7 +53,7 @@ namespace Collector
 
         public override void Run()
         {
-            Trace.TraceInformation("Url Collector Worker is running");
+            Trace.TraceInformation("Collector Worker is running");
             try
             {
                 this.RunAsync(this.cancellationTokenSource.Token).Wait();
@@ -70,7 +70,7 @@ namespace Collector
             // For information on handling configuration changes
             // see the MSDN topic at https://go.microsoft.com/fwlink/?LinkId=166357.
             bool result = base.OnStart();
-            Trace.TraceInformation("Url Collector Worker has been started");
+            Trace.TraceInformation("Collector Worker has been started");
             Initialize();
             return result;
         }
@@ -84,7 +84,7 @@ namespace Collector
             urlList = new Dictionary<string, string>();
             // Initialize Table (WebsitePage Table)
             tableClient = storageAccount.CreateCloudTableClient();
-            roleStatusTable = tableClient.GetTableReference("rolestatus");
+            roleStatusTable = tableClient.GetTableReference("RoleStatus");
             errorTable = tableClient.GetTableReference("ErrorTable");
             // Initialize Queue (UrlToCrawl Queue)
             queueClient = storageAccount.CreateCloudQueueClient();
@@ -115,7 +115,6 @@ namespace Collector
             currentStateNumber = (byte)STATES.STOP;
             currentStateDescription = States[currentStateNumber];
             // clear role status table
-            // Partionkey this.GetType().Namespace (Collector)
             ClearRoleStatusTableContent(this.GetType().Namespace);
         }
 
@@ -145,9 +144,7 @@ namespace Collector
                 currentCommand = command.AsString;
             }
             catch (Exception)
-            {
-                // command queue is empty
-            }
+            { }
             // start command is issued
             if (currentCommand.ToLower().Equals("start"))
             {
@@ -185,7 +182,6 @@ namespace Collector
             else
             {
                 currentStateNumber = (byte)STATES.STOP;
-
             }
             currentStateDescription = States[currentStateNumber];
         }
@@ -215,43 +211,32 @@ namespace Collector
                 switch (currentStateNumber)
                 {
                     case (byte)STATES.START:
-                        // get seed url from the Seed Url Queue
-                        currentSeedUrl = await GetSeedUrlFromQueue();
-                        // parse robots.txt
-                        robotTxtParser.SeedUrl = currentSeedUrl;
+                        currentSeedUrl = await GetSeedUrlFromQueue(); // get seed url from the Seed Url Queue
+                        robotTxtParser.SeedUrl = currentSeedUrl; // parse robots.txt
                         robotTxtParser.ParseRobotsTxtFile();
-                        // set current working url of the collector to current seed url value
-                        workerStatus.CurrentWorkingUrl = currentSeedUrl;
-                        // collect urls using sitemap
+                        workerStatus.CurrentWorkingUrl = currentSeedUrl;  // set current working url of the collector to current seed url value
                         await UpdateWorkerStatus();
-                        await CollectUrlsToCrawlThroughSiteMaps(currentSeedUrl);
-                        // collect url from starting from the homepage
-                        await CollectUrlStartFromPage(currentSeedUrl, false);
-                        // Reset
-                        Reset();
-                        // sleep for 0.5s
-                        Thread.Sleep(500);
+                        await CollectUrlsToCrawlThroughSiteMaps(currentSeedUrl); // collect urls using sitemap                        
+                        await CollectUrlStartFromPage(currentSeedUrl, false); // collect url from starting from the homepage                    
+                        Reset(); // Reset
+                        Thread.Sleep(500); // sleep for 0.5s
                         break;
-                    case (byte)STATES.STOP:
-                        // wait 10s before Reading again
+                    case (byte)STATES.STOP:                        
                         Reset();
-                        Thread.Sleep(10000);
+                        Thread.Sleep(10000); // wait 10s before Reading again
                         break;
-                    case (byte)STATES.IDLE:
-                        // wait 5s before Reading again
+                    case (byte)STATES.IDLE:               
                         Reset();
-                        Thread.Sleep(5000);
+                        Thread.Sleep(5000); // wait 5s before Reading again
                         break;
                 }
             }
         }
 
         private void Reset()
-        {
-            // clear url runtime queue
-            urlList.Clear();
-            // Empty seed url
-            currentSeedUrl = string.Empty;
+        {            
+            urlList.Clear(); // clear url runtime queue
+            currentSeedUrl = string.Empty;  // Empty seed url
         }
 
         private async Task<string> GetSeedUrlFromQueue()
@@ -260,9 +245,8 @@ namespace Collector
             try
             {
                 CloudQueueMessage seedUrlObject = await seedUrlQueue.GetMessageAsync();
-                url = seedUrlObject.AsString;
-                // if all the role instances read the message, delete it from the queue,
-                if (seedUrlObject.DequeueCount >= instanceCount)
+                url = seedUrlObject.AsString;           
+                if (seedUrlObject.DequeueCount >= instanceCount)  // if all the role instances read the message, delete it from the queue,
                 {
                     await seedUrlQueue.DeleteMessageAsync(seedUrlObject);
                 }
@@ -277,9 +261,8 @@ namespace Collector
             }
             return url.Trim(' ').TrimEnd('/');
         }
-
-        // Collect urls using sitemaps
-        private async Task CollectUrlsToCrawlThroughSiteMaps(string target)
+     
+        private async Task CollectUrlsToCrawlThroughSiteMaps(string target)  // Collect urls using sitemaps
         {
             if (string.IsNullOrEmpty(target) || string.IsNullOrWhiteSpace(target))
             {
@@ -288,13 +271,11 @@ namespace Collector
             if (robotTxtParser.GetSiteMaps().Count == 0)
             {
                 return;
-            }
-            // initialize a XmlDocument Parser
-            XmlDocument document = new XmlDocument();
+            }        
+            XmlDocument document = new XmlDocument();  // initialize a XmlDocument Parser
             foreach (string sitemapUrl in robotTxtParser.GetSiteMaps())
-            {
-                // check command queue
-                await ReadCommandQueue();
+            {           
+                await ReadCommandQueue(); // check command queue
                 if (currentStateNumber == (byte)STATES.STOP)
                 {
                     return;
@@ -311,19 +292,16 @@ namespace Collector
                         document.Load(sitemapUrl);
                     }
                     catch (Exception ex)
-                    {
-                        // push an error
-                        await PushErrorPageObject(sitemapUrl, "REQUEST ERROR", ex.Message);
+                    {                         
+                        await PushErrorPageObject(sitemapUrl, "REQUEST ERROR", ex.Message); // push an error
                         continue;
                     }
-                }
-
-                // check if site map url is a sitemapindex (collection of other sitemaps)
-                if (document.DocumentElement.Name.ToLower() == "sitemapindex")
+                }               
+                if (document.DocumentElement.Name.ToLower() == "sitemapindex") // check if site map url is a sitemapindex (collection of other sitemaps)
                 {
                     await CollectUrlThroughSitemapIndex(document);
-                } // if site map url is a actual sitemap (parent node: urlset, collection of actual urls of pages of the target seed url)
-                else if (document.DocumentElement.Name.ToLower() == "urlset")
+                }  
+                else if (document.DocumentElement.Name.ToLower() == "urlset") // if site map url is a actual sitemap (parent node: urlset, collection of actual urls of pages of the target seed url)
                 {
                     await CollectUrlsToCrawlFromSitemap(sitemapUrl);
                 }
@@ -345,9 +323,8 @@ namespace Collector
                 await CollectUrlsToCrawlFromSitemap(url);
             }
         }
-
-        // use this method if 'link' is a link to an actual sitemap
-        private async Task CollectUrlsToCrawlFromSitemap(string link)
+    
+        private async Task CollectUrlsToCrawlFromSitemap(string link) // use this method if 'link' is a link to an actual sitemap
         {
             XmlDocument document = new XmlDocument();
             try
@@ -362,9 +339,8 @@ namespace Collector
             }
             XmlNodeList urls = document.GetElementsByTagName("url");
             foreach (XmlNode url in urls)
-            {
-                // check command queue
-                await ReadCommandQueue();
+            {            
+                await ReadCommandQueue(); // check command queue
                 if (currentStateNumber == (byte)STATES.STOP)
                 {
                     return;
@@ -375,9 +351,8 @@ namespace Collector
                 {
                     Trace.TraceInformation("URL " + urlString + " Already Exists in the Runtime URL Queue");
                     continue;
-                }
-                // Insert to the queue (runtime and azure queue)
-                urlList.Add(key, urlString);
+                }                
+                urlList.Add(key, urlString); // Insert to the queue (runtime and azure queue)
                 if (robotTxtParser.IsURLAllowed(urlString))
                 {
                     CloudQueueMessage urlToCrawl;
@@ -413,13 +388,12 @@ namespace Collector
 
             }
 
-            var linkedPages = htmlDoc.DocumentNode.Descendants("a")
+            var links = htmlDoc.DocumentNode.Descendants("a")
                 .Select(a => a.GetAttributeValue("href", null))
                 .Where(u => (!string.IsNullOrEmpty(u) && u.StartsWith("/")));
-            foreach (string page in linkedPages)
-            {
-                // check command queue
-                await ReadCommandQueue();
+            foreach (string page in links)
+            {                 
+                await ReadCommandQueue(); // check command queue
                 if (currentStateNumber == (byte)STATES.STOP)
                 {
                     return;
@@ -429,20 +403,17 @@ namespace Collector
                 a = currentSeedUrl + "/" + a;
                 string key = Generate256HashCode(a);
                 if (!robotTxtParser.IsURLAllowed(a))
-                {
-                    // skip disallowed urls
-                    continue;
+                {                
+                    continue; // skip disallowed urls
                 }
                 if (urlList.ContainsKey(key))
-                {
-                    // skip urls already saved
-                    continue;
+                {                   
+                    continue; // skip urls already saved
                 }
                 // add to runtime url list
                 urlList.Add(key, a);
-                await urlQueue.AddMessageAsync(new CloudQueueMessage(a + " "));
-                Trace.TraceInformation("Added: " + a + " to the Queue");
-                if (page.Equals(linkedPages.LastOrDefault()))
+                await urlQueue.AddMessageAsync(new CloudQueueMessage(a));
+                if (page.Equals(links.LastOrDefault()))
                 {
                     isLast = true;
                 }
@@ -458,14 +429,11 @@ namespace Collector
         {
             byte[] data = algorithm.ComputeHash(Encoding.UTF8.GetBytes(s));
             StringBuilder sBuilder = new StringBuilder();
-            // Loop through each byte of the hashed data 
-            // and format each one as a hexadecimal string.
-            for (int i = 0; i < data.Length; i++)
+            for (int i = 0; i < data.Length; i++)   // Loop through each byte of the hashed data and format each one as a hexadecimal string
             {
                 sBuilder.Append(data[i].ToString("x2"));
-            }
-            // Return the hexadecimal string.
-            return sBuilder.ToString();
+            }            
+            return sBuilder.ToString(); // Return the hexadecimal string.
         }
 
         private async Task PushErrorPageObject(string url, string errorTag, string errorDetails)
