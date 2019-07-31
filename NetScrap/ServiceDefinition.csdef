@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <ServiceDefinition name="NetScrap" xmlns="http://schemas.microsoft.com/ServiceHosting/2008/10/ServiceDefinition" schemaVersion="2015-04.2.6">
-  <WebRole name="MVCWebRole" vmsize="Small">
+  <WebRole name="MVCWebRole" vmsize="ExtraSmall">
     <Sites>
       <Site name="Web">
         <Bindings>
@@ -18,7 +18,7 @@
       <Import moduleName="RemoteAccess" />
     </Imports>
   </WebRole>
-  <WorkerRole name="Collector" vmsize="Small">
+  <WorkerRole name="Collector" vmsize="ExtraSmall">
     <ConfigurationSettings>
       <Setting name="StorageConnectionString" />
     </ConfigurationSettings>
@@ -30,7 +30,7 @@
       <Import moduleName="RemoteForwarder" />
     </Imports>
   </WorkerRole>
-  <WorkerRole name="Crawler" vmsize="Small">
+  <WorkerRole name="Crawler" vmsize="ExtraSmall">
     <ConfigurationSettings>
       <Setting name="StorageConnectionString" />
     </ConfigurationSettings>
