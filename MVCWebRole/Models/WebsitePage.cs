@@ -23,6 +23,12 @@ namespace MVCWebRole.Models
 
         public string SubDomain { get; set; }
 
+        public Int64 Clicks { get; set; }
+
+        public string ErrorTag { get; set; }
+
+        public string ErrorDetails { get; set; }
+
         [Required]
         public string Url
         {
@@ -53,11 +59,8 @@ namespace MVCWebRole.Models
             this.PublishDate = null;
             this.Title = "Title";
             this.Content = "Content Preview Not Available";
+            this.Clicks = 0;
         }
-
-        public string ErrorTag { get; set; }
-
-        public string ErrorDetails { get; set; }
 
         public WebsitePage(string partitionKey, string rowKey)
         {
@@ -73,6 +76,7 @@ namespace MVCWebRole.Models
             this.ErrorDetails = string.Empty;
             this.Title = "Title";
             this.Content = "Content Preview Not Available";
+            this.Clicks = 0;
         }
 
         private string Generate256HashCode(string s)
