@@ -44,21 +44,20 @@ namespace Crawler
         HtmlWeb webGet;
 
         private PerformanceCounter cpuCounter;
-
-        // Container for Website pages to be inserted to the Table
-        private List<WebsitePage> container;
-        private RoleStatus workerStatus;
+      
+        private List<WebsitePage> container; // Container for Website pages to be inserted to the Table (needed for batch operation)
+        private RoleStatus workerStatus; // object worker status reporting
         private readonly HashAlgorithm algorithm = SHA256.Create();
-        private readonly int minimumWebSiteCount = 50;
+        private readonly int minimumWebSiteCount = 50; // minimun website count before pushing to the database
         private string instanceId;
         private readonly string[] States = { "RUNNING", "STOPPED", "IDLE" };
         private string currenStateDescription;
         private byte currentStateNumber;
-        // current working url, for status report purpose, role status table
+        // current working url, for status report purposes, role status table
         private string currentWorkingUrl;
         private Uri uri;
         private Dictionary<string, string> domainDictionary;
-        private readonly DomainParser domainParser = new DomainParser(new WebTldRuleProvider());
+        private readonly DomainParser domainParser = new DomainParser(new WebTldRuleProvider()); // domain parser
         private List<string> stopwords;
 
         private void Initialize()
@@ -251,13 +250,12 @@ namespace Crawler
                 await ReadCommandQueue();
                 await UpdateInternalState();
                 await UpdateWorkerStatus();
-                // main state handler
-                switch (currentStateNumber)
+                switch (currentStateNumber)  // main state handler
                 {
                     case (byte)STATES.START:
                         {
                             CloudQueueMessage retrieveUrl = null;
-                            string url = string.Empty;
+                            string url;
                             try
                             {
                                 retrieveUrl = urlQueue.GetMessage();
@@ -266,43 +264,36 @@ namespace Crawler
                             catch (Exception)
                             {
                                 // retrieveUrl is null, which means url queue is empty
+                                url = string.Empty;
                             }
                             await Crawl(url);
-                            // delete queue message
-                            if (retrieveUrl != null)
+                            if (retrieveUrl != null) // delete queue message
                             {
                                 try
                                 {
                                     await urlQueue.DeleteMessageAsync(retrieveUrl);
                                 }
                                 catch (Exception)
-                                {
-
-                                }
+                                { /* Other Process deleted the message already */}
                             }
-                            // wait 0.5s before Reading again
-                            Thread.Sleep(500);
+                            Thread.Sleep(500); // wait 0.5s before Reading again
                         }
                         break;
                     case (byte)STATES.STOP:
                         currentWorkingUrl = string.Empty;
-                        // insert remaining website page objects to database
-                        if (container.Any())
+                        if (container.Any()) // insert remaining website page objects to database
                         {
                             await BatchInsertToDatabase(1);
                         }
-                        // wait 10s before Reading again
-                        Thread.Sleep(10000);
+                        Thread.Sleep(10000); // wait 10s before Reading again
                         break;
                     case (byte)STATES.IDLE:
                         currentWorkingUrl = string.Empty;
-                        // insert remaining website page objects to database
-                        if (container.Any())
+                        if (container.Any())  // insert remaining website page objects to database
                         {
                             await BatchInsertToDatabase(1);
                         }
-                        // wait 5s before Reading again
-                        Thread.Sleep(5000);
+                        Thread.Sleep(5000); // wait 5s before Reading again
                         break;
                 }
             }
@@ -311,17 +302,15 @@ namespace Crawler
         // method for actual crawling and saving to the database
         private async Task Crawl(string url)
         {
-            // if url is empty, exit immediately 
-            if (string.IsNullOrEmpty(url) || string.IsNullOrWhiteSpace(url))
+            if (string.IsNullOrEmpty(url) || string.IsNullOrWhiteSpace(url))  // if url is empty, exit immediately 
             {
                 return;
             }
-            WebsitePage MainWebsitePageObject = new WebsitePage();
+            WebsitePage MainWebsitePageObject = new WebsitePage(); // instantiate Main Website Page Object
             currentWorkingUrl = url;
-            // download html page
             try
             {
-                htmlDoc = webGet.Load(url);
+                htmlDoc = webGet.Load(url); // download html page
             }
             catch (WebException)
             {
@@ -344,10 +333,9 @@ namespace Crawler
                 }
 
             }
-            // PARSE HTML FOR CONTENT
-            // get domain name
-            uri = new Uri(url);
-            string urlDomain = domainParser.Get(uri.Authority).Domain;
+            // PARSE HTML FOR CONTENT         
+            uri = new Uri(url);  // get domain name
+            string urlDomain = domainParser.Get(uri.Authority).Domain;  // get domain name
             // parse page title
             string title = "Title";
             HtmlNode titleNode;
@@ -389,11 +377,9 @@ namespace Crawler
             }
             catch (Exception)
             { /* retain default value content = "Content"*/ }
-
             MainWebsitePageObject.Content = content;
-            // check publish date (in meta data tags if available)
             DateTime current = DateTime.UtcNow;
-            DateTime? publishDate;
+            DateTime? publishDate; // check publish date (in meta data tags if available)
             try
             {
                 // get the publish stored in meta data eg. (cnn.com, espn.com)
@@ -403,8 +389,7 @@ namespace Crawler
                 publishDate = Convert.ToDateTime(pubDate);
                 if (!(publishDate.Value.Year == current.Year && (current.Month - publishDate.Value.Month <= 3)))
                 {
-                    // article is too old, it will not be added to the database
-                    Trace.TraceInformation("Article is too old: " + url);
+                    Trace.TraceInformation("Article is too old: " + url); // article is too old, it will not be added to the database
                     return;
                 }
             }
@@ -413,7 +398,7 @@ namespace Crawler
                 publishDate = null;
             }
             MainWebsitePageObject.PublishDate = publishDate;
-            if (urlDomain.Contains("bleacherreport") || urlDomain.Contains("espn"))  // check if site domain is 'bleacherreport' or 'espn'
+            if (urlDomain.Contains("bleacherreport"))  // check if site domain is 'bleacherreport'
             {
                 string keywords = htmlDoc.DocumentNode
                     .SelectSingleNode("//meta[@name='keywords']")

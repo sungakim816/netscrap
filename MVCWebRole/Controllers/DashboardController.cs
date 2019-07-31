@@ -236,6 +236,8 @@ namespace MVCWebRole.Controllers
             {
                 await websitePageMasterTable.DeleteIfExistsAsync();
                 await websitePageMasterTable.CreateIfNotExistsAsync();
+                await errorTable.DeleteIfExistsAsync();
+                await errorTable.CreateIfNotExistsAsync();
                 List<string> tableNames = domainTable
                 .ExecuteQuery(new TableQuery<WebsitePagePartitionKey>()
                 .Select(new List<string> { "PartitionKey" }))
