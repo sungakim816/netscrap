@@ -14,6 +14,7 @@ using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -104,7 +105,7 @@ namespace Crawler
             {
                 OptionFixNestedTags = true
             };
-            disallowedCharacters = new[] { '?', ',', ':', ';' };
+            disallowedCharacters = new[] { '?', ',', ':', ';', '!', '&', '(', ')', '"'};
             // downloader
             webGet = new HtmlWeb();
             container = new List<WebsitePage>();
@@ -443,11 +444,15 @@ namespace Crawler
             foreach (string word in titleKeywords) // create website page object, use keywords as partition key and add to container
             {
                 string keyword = word.ToLower(); // lower the keyword
+                // remove disallowed characters
                 keyword = new String(keyword.ToCharArray().Where(c => !disallowedCharacters.Contains(c)).ToArray());
-                keyword = keyword.Replace(" ", "");
                 if (keyword.IndexOf("'s") >= 0)
                 {
                     keyword = keyword.Remove(keyword.IndexOf("'s"), 2).Trim();  // remove "'s"
+                }                 
+                if(!keyword.Any(c => char.IsLetter(c))) // if keyword does not contain any letter, skip the keyword
+                {
+                    continue;
                 }
                 WebsitePage page = new WebsitePage(keyword, url) // keyword = partition key, url = rowkey,(hashed)
                 {

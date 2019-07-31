@@ -1,18 +1,18 @@
 ﻿@model MVCWebRole.Models.WebsitePage
 @{
-    ViewBag.Title = (Model.Title != null)? Model.Title: string.Empty;
+    ViewBag.Title = (Model.Title != null) ? Model.Title : "Title Not Available";
 }
 
 <div class="container">
     <div class="jumbotron">
         <h1 class="display-4"><a href="@Model.Url">@Model.Title</a></h1><br />
         <p class="lead">@Model.Content </p>
-        @if (!Model.ErrorTag.Equals(string.Empty))
+        @if (Model.ErrorTag != null && !Model.ErrorTag.Equals(string.Empty))
         {
             <h6>Error Tag: @Model.ErrorTag</h6>
         }
         <h6>Date Crawled: @Model.Timestamp.ToLocalTime()</h6>
-        @if (Model.PublishDate.HasValue)
+        @if (Model.PublishDate != null && Model.PublishDate.HasValue)
         {
             <h6>Published Date: @Model.PublishDate.Value</h6>
         }
