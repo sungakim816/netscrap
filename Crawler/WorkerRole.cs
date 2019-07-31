@@ -435,26 +435,10 @@ namespace Crawler
             }
             CloudTable table = tableClient.GetTableReference(urlDomain);  // create a table using url domain as a name
             await table.CreateIfNotExistsAsync(); // create if does not exist
-            var titleKeywords = title  // split the title in to keywords
-                .ToLower()
-                .Split(' ')
-                .Where(s => !stopwords.Contains(s.Trim()))
-                .Select(s => s.Trim())
-                .Where(s => s.Length >= 2);
+            var titleKeywords = GetValidKeywords(title);
             foreach (string word in titleKeywords) // create website page object, use keywords as partition key and add to container
             {
-                string keyword = word.ToLower(); // lower the keyword
-                // remove disallowed characters
-                keyword = new String(keyword.ToCharArray().Where(c => !disallowedCharacters.Contains(c)).ToArray());
-                if (keyword.IndexOf("'s") >= 0)
-                {
-                    keyword = keyword.Remove(keyword.IndexOf("'s"), 2).Trim();  // remove "'s"
-                }                 
-                if(!keyword.Any(c => char.IsLetter(c))) // if keyword does not contain any letter, skip the keyword
-                {
-                    continue;
-                }
-                WebsitePage page = new WebsitePage(keyword, url) // keyword = partition key, url = rowkey,(hashed)
+                WebsitePage page = new WebsitePage(word, url) // keyword = partition key, url = rowkey,(hashed)
                 {
                     Title = title,
                 };
@@ -465,6 +449,34 @@ namespace Crawler
             await BatchInsertToDatabase(minimumWebSiteCount);  // batch insert operation
         }
 
+        private List<string> GetValidKeywords(string query)
+        {
+            if (string.IsNullOrEmpty(query) || string.IsNullOrWhiteSpace(query))
+            {
+                return new List<string>();
+            }
+            IEnumerable<string> keywords = query.ToLower().Split(' ').AsEnumerable(); // split 'query' into 'keywords'
+            keywords = keywords
+                .Where(k => k.Length >= 2 && !stopwords.Contains(k.Trim()) && k.Any(c => char.IsLetter(c)))
+                .Select(k => k.Trim('\'').Trim('"').Trim()); // remove unnecessary characters
+            List<string> filteredKeywords = new List<string>(); // create an empty list for filtered keywords
+            foreach (var word in keywords)
+            {
+                string keyword = word;
+                keyword = new string(keyword.ToCharArray().Where(c => !disallowedCharacters.Contains(c)).ToArray()); // check for disallowed characters
+                if (keyword.IndexOf("'s") >= 0)
+                {
+                    keyword = keyword.Remove(keyword.IndexOf("'s"), 2);  // remove 's
+                }
+                keyword = keyword.Trim('\'').Trim('"').Trim('?').TrimEnd('.'); // remove unncessary characters again
+                if (keyword.Length < 2 || stopwords.Contains(keyword)) // check for length and for 'stopwords'
+                {
+                    continue;
+                }
+                filteredKeywords.Add(keyword);
+            }
+            return filteredKeywords;
+        }
 
         private async Task PushErrorPageObject(WebsitePage page)
         {
