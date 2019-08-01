@@ -88,16 +88,24 @@ namespace MVCWebRole.Controllers
         [HttpGet]
         [Route("Dashboard/ShowLatestIndexed")]
         [Route("Dashboard/Show/Latest/{count:regex(^[1-9]{0,3}$)}")]
-        public ActionResult ShowLatestIndexed(int? count)
+        public async Task<ActionResult> ShowLatestIndexed(int? count)
         {
             if (!count.HasValue)
             {
                 count = 10;
             }
+            List<WebsitePage> result = new List<WebsitePage>();
+            TableContinuationToken continuationToken = null;
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
                 .Select(new List<string> { "Timestamp", "Title", "PartitionKey", "RowKey", "Domain", "SubDomain" });
-            var websitepages = websitePageMasterTable.ExecuteQuery(rangeQuery);
-            websitepages = websitepages.OrderByDescending(x => x.Timestamp).Take(count.Value);
+            do
+            {
+                TableQuerySegment<WebsitePage> partialResult = await websitePageMasterTable
+                    .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
+                continuationToken = partialResult.ContinuationToken;
+                result.AddRange(partialResult);
+            } while (continuationToken != null);
+            var websitepages = result.OrderByDescending(x => x.Timestamp).Take(count.Value);
             return View(websitepages);
         }
 
