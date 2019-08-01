@@ -284,7 +284,7 @@ namespace Collector
                 {
                     document.Load(sitemapUrl);
                 }
-                catch (WebException)
+                catch (Exception)
                 {
                     ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
                     try
@@ -373,7 +373,7 @@ namespace Collector
             {
                 htmlDoc = webGet.Load(link);
             }
-            catch (WebException)
+            catch (Exception)
             {
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
                 try

@@ -92,7 +92,7 @@ namespace Collector
             {
                 content = client.DownloadString(url);
             }
-            catch (WebException)
+            catch (Exception)
             {
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
                 try
