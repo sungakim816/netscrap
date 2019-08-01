@@ -54,17 +54,28 @@
         </div>
     </div>
 
-    @*Modal for error List*@
-    <div class="container">
-        <div id="error-list" class="text-white">
-            <div class="text-center">
-                <div class="spinner-grow text-success" style="width: 3rem; height: 3rem;" role="status">
-                    <span class="sr-only">Loading...</span>
+    <div class="row">
+        @*Modal for error List*@
+        <div class="col">
+            <div id="error-list" class="text-white">
+                <div class="text-center">
+                    <div class="spinner-grow text-success" style="width: 3rem; height: 3rem;" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        @*Modal for popular searches*@
+        <div class="col">
+            <div id="popular-search" class="text-white">
+                <div class="text-center">
+                    <div class="spinner-grow text-success" style="width: 3rem; height: 3rem;" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-
 </div>
 
 @**Modal for Command Notifications*@
@@ -98,6 +109,9 @@
         UpdateErrorList();
         setInterval("UpdateErrorList()", 20000);
 
+        UpdatePopularSearch();
+        setInterval("UpdatePopularSearch()", 10000);
+
         $('#error-list').on('click', 'a', function (e) {
             e.preventDefault();  //prevent action link normal functionality
             $.ajax({
@@ -111,11 +125,23 @@
             return false;
         });
 
+        $('#popular-search').on('click', 'a', function (e) {
+            e.preventDefault();  //prevent action link normal functionality
+            $.ajax({
+                url: this.href,
+                type: 'GET',
+                cache: false,
+                success: function (result) {
+                    $('#popular-search').html(result);
+                }
+            });
+            return false;
+        });
+
         function copyLinkToClipBoard(id) {
             let url = document.getElementById(id);
             url.select();
             document.execCommand("copy");
-            alert("URL Copied");
         }
 
         function UpdateWorkerStatus() {
@@ -228,11 +254,23 @@
             var xmlhttp = new XMLHttpRequest();
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
-                        document.getElementById('error-list').innerHTML = this.responseText;
+                        $("#error-list").html(this.responseText);
                     }
                 };
             xmlhttp.open('GET', '@Url.Action("ErrorList", "Dashboard")', true);
             xmlhttp.send();
         }
+
+        function UpdatePopularSearch() {
+            var xmlhttp = new XMLHttpRequest();
+                xmlhttp.onreadystatechange = function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        $("#popular-search").html(this.responseText);
+                    }
+                };
+                xmlhttp.open('GET', '@Url.Action("PopularSearch", "Dashboard")', true);
+                xmlhttp.send();
+        }
+
     </script>
 }

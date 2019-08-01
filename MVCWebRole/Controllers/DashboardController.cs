@@ -101,6 +101,8 @@ namespace MVCWebRole.Controllers
             return View(websitepages);
         }
 
+
+
         public async Task<int?> UrlQueueCount()
         {
             return await CountQueueMessagesAsync(urlQueue);
@@ -243,7 +245,7 @@ namespace MVCWebRole.Controllers
                 .Select(new List<string> { "PartitionKey" }))
                 .Select(x => x.PartitionKey)
                 .ToList();
-                foreach(string tableName in tableNames)
+                foreach (string tableName in tableNames)
                 {
                     CloudTable table = tableClient.GetTableReference(tableName);
                     await table.DeleteIfExistsAsync();
@@ -288,7 +290,7 @@ namespace MVCWebRole.Controllers
         [HttpGet]
         [Route("Dashboard/ErrorList/")]
         [Route("Dashboard/Errors/{pageNumber:regex(^[1-9]{0,3}$)}")]
-        public ActionResult ErrorList(int? pageNumber)
+        public async Task<ActionResult> ErrorList(int? pageNumber)
         {
             // count, results per page
             int pageSize = 10; // items per pages
@@ -296,10 +298,43 @@ namespace MVCWebRole.Controllers
             {
                 pageNumber = 1;
             }
-            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>();      
-            var websitepages = errorTable.ExecuteQuery(rangeQuery);
-            websitepages = websitepages.OrderByDescending(x => x.Timestamp);
+            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>();
+            TableContinuationToken continuationToken = null;
+            List<WebsitePage> results = new List<WebsitePage>();
+            do
+            {
+                TableQuerySegment<WebsitePage> segmentResult = await errorTable
+                    .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
+                continuationToken = segmentResult.ContinuationToken;
+                results.AddRange(segmentResult);
+
+            } while (continuationToken != null);
+            var websitepages = results.OrderByDescending(r => r.Timestamp);
             return PartialView(websitepages.ToPagedList((int)pageNumber, pageSize));
+        }
+
+        [HttpGet]
+        [Route("Dashboard/PopularSearch/")]
+        [Route("Dashboard/Popular/Search/{pageNumber:regex(^[1-9]{0,3}$)}")]
+        public async Task<ActionResult> PopularSearch(int? pageNumber)
+        {
+            int pageSize = 10;
+            if (!pageNumber.HasValue)
+            {
+                pageNumber = 1;
+            }
+            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
+                .Where(TableQuery.GenerateFilterConditionForInt("Clicks", QueryComparisons.GreaterThan, 0));
+            List<WebsitePage> result = new List<WebsitePage>();
+            TableContinuationToken continuationToken = null;
+            do
+            {
+                TableQuerySegment<WebsitePage> segmentResult = await websitePageMasterTable
+                    .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
+                result.AddRange(segmentResult);
+                continuationToken = segmentResult.ContinuationToken;
+            } while (continuationToken != null);
+            return View(result.OrderByDescending(r => r.Clicks).ToPagedList((int)pageNumber, pageSize));
         }
     }
 }

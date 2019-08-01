@@ -6,14 +6,17 @@
 <div class="w-100 p-4">
     @if (Model != null && Model.Any())
     {
-        <p class="h2">Latest Indexed</p>
+        <p>
+            <span class="h3">Latest Indexed</span>&nbsp;
+            <span class="h6">(@DateTime.Now.ToLocalTime())</span>
+        </p>
         <div class="list-group bg-light rounded-circle">
             @foreach (var page in Model)
             {
                 <div class="list-group-item list-group-item-action ">
                     <div class="d-flex w-100 justify-content-between">
                         <h6 class="mb-1 text-break">@page.Title</h6> &nbsp;&nbsp;
-                        <small>Date crawled:&nbsp;@page.Timestamp.ToLocalTime()</small>
+                        <small>@page.Timestamp.ToLocalTime()</small>
                     </div>
                     <small class="text-dark">
                         <span class="font-weight-bolder">Domain:</span> &nbsp;
