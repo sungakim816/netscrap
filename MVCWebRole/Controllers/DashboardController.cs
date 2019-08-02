@@ -95,24 +95,24 @@ namespace MVCWebRole.Controllers
             }
             var domains = domainTable
                 .ExecuteQuery(new TableQuery<DomainObject>()
-                .Select(new List<string> { "PartitionKey" })).Select(x => x.PartitionKey);
-
+                .Select(new List<string> { "PartitionKey" }));
             var result = new List<WebsitePage>();
-            foreach(var domain in domains)
+            foreach (var domain in domains)
             {
                 TableContinuationToken continuationToken = null;
                 TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
-                    .Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, domain))
+                    .Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, domain.PartitionKey))
                     .Select(new List<string> { "Timestamp", "Title", "PartitionKey", "RowKey", "SubDomain" });
                 do
                 {
                     TableQuerySegment<WebsitePage> partialResult = await websitePageMasterTable
                         .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
                     continuationToken = partialResult.ContinuationToken;
-                    result.AddRange(partialResult.Results);
+                    result.AddRange(partialResult.Results.OrderByDescending(x => x.Timestamp).Take(10));
                 } while (continuationToken != null);
-            }     
-            return View(result.OrderByDescending(x => x.Timestamp).Take(count.Value));
+            }
+            var websitePages = result.OrderByDescending(x => x.Timestamp).Take(count.Value);
+            return View(websitePages);
         }
 
         public async Task<int?> UrlQueueCount()
