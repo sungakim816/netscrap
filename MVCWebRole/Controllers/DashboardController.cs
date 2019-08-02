@@ -93,19 +93,26 @@ namespace MVCWebRole.Controllers
             {
                 count = 10;
             }
+            var domains = domainTable
+                .ExecuteQuery(new TableQuery<DomainObject>()
+                .Select(new List<string> { "PartitionKey" })).Select(x => x.PartitionKey);
+
             var result = new List<WebsitePage>();
-            TableContinuationToken continuationToken = null;
-            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
-                .Select(new List<string> { "Timestamp", "Title", "PartitionKey", "RowKey", "SubDomain" });
-            do
+            foreach(var domain in domains)
             {
-                TableQuerySegment<WebsitePage> partialResult = await websitePageMasterTable
-                    .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
-                continuationToken = partialResult.ContinuationToken;
-                result.AddRange(partialResult.Results);
-            } while (continuationToken != null);
-            var websitepages = result.Skip(result.Count() - 10).OrderByDescending(x => x.Timestamp);
-            return View(websitepages);
+                TableContinuationToken continuationToken = null;
+                TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
+                    .Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, domain))
+                    .Select(new List<string> { "Timestamp", "Title", "PartitionKey", "RowKey", "SubDomain" });
+                do
+                {
+                    TableQuerySegment<WebsitePage> partialResult = await websitePageMasterTable
+                        .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
+                    continuationToken = partialResult.ContinuationToken;
+                    result.AddRange(partialResult.Results);
+                } while (continuationToken != null);
+            }     
+            return View(result.OrderByDescending(x => x.Timestamp).Take(count.Value));
         }
 
         public async Task<int?> UrlQueueCount()
