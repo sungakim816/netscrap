@@ -82,8 +82,8 @@
 <div class="modal fade" id="command-response" tabindex="-1" role="dialog" aria-labelledby="command" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content" id="command-response-content">
-            <div class="text-center">
-                <div class="spinner-grow text-success" style="width: 3rem; height: 3rem;" role="status">
+            <div class="text-center bg-transparent">
+                <div class="spinner-grow text-success" style="width: 5rem; height: 5rem;" role="status">
                     <span class="sr-only">Loading...</span>
                 </div>
             </div>
@@ -107,10 +107,10 @@
         setInterval("UpdateLatestIndexedPage(10)", 10000);
 
         UpdateErrorList();
-        setInterval("UpdateErrorList()", 20000);
+        setInterval("UpdateErrorList()", 30000);
 
         UpdatePopularSearch();
-        setInterval("UpdatePopularSearch()", 10000);
+        setInterval("UpdatePopularSearch()", 30000);
 
         $('#error-list').on('click', 'a', function (e) {
             e.preventDefault();  //prevent action link normal functionality
@@ -148,7 +148,7 @@
             var xmlhttp = new XMLHttpRequest();
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
-                        document.getElementById("worker-role-status").innerHTML = this.responseText;
+                        $("#worker-role-status").html(this.responseText);
                     }
                 };
                 xmlhttp.open('GET', '@Url.Action("WorkerStatus", "Dashboard")', true);
@@ -160,8 +160,8 @@
             var xmlhttp = new XMLHttpRequest();
             xmlhttp.onreadystatechange = function () {
                 if (this.readyState == 4 && this.status == 200) {
-                    document.getElementById("command-response-content").innerHTML = this.responseText;
-                    document.getElementById("url-input").value = "";
+                    $("#command-response-content").html(this.responseText);
+                    $("#url-input").html("");
                 }
             };
             xmlhttp.open('GET', '@Url.Action("AddSeedUrl", "Dashboard")' +'?url=' + url, true);
@@ -172,7 +172,7 @@
             var xmlhttp = new XMLHttpRequest();
             xmlhttp.onreadystatechange = function () {
                 if (this.readyState == 4 && this.status == 200) {
-                    document.getElementById("command-response-content").innerHTML = this.responseText;
+                    $("#command-response-content").html(this.responseText);
                 }
             };
 
@@ -188,7 +188,7 @@
             var xmlhttp = new XMLHttpRequest();
             xmlhttp.onreadystatechange = function () {
                 if (this.readyState == 4 && this.status == 200) {
-                    document.getElementById("command-response-content").innerHTML = this.responseText;
+                    $("#command-response-content").html(this.responseText);
                 }
             };
             xmlhttp.open('POST', '@Url.Action("ClearUrlQueue", "Dashboard")', true);

@@ -54,7 +54,6 @@ namespace MVCWebRole.Controllers
 
         // GET: Dashboard
         [HttpGet]
-        // [OutputCache(Duration = 15)]
         public ActionResult Index()
         {
             return View();
@@ -94,22 +93,20 @@ namespace MVCWebRole.Controllers
             {
                 count = 10;
             }
-            List<WebsitePage> result = new List<WebsitePage>();
+            var result = new List<WebsitePage>();
             TableContinuationToken continuationToken = null;
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
-                .Select(new List<string> { "Timestamp", "Title", "PartitionKey", "RowKey", "Domain", "SubDomain" });
+                .Select(new List<string> { "Timestamp", "Title", "PartitionKey", "RowKey", "SubDomain" });
             do
             {
                 TableQuerySegment<WebsitePage> partialResult = await websitePageMasterTable
                     .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
                 continuationToken = partialResult.ContinuationToken;
-                result.AddRange(partialResult);
+                result.AddRange(partialResult.Results);
             } while (continuationToken != null);
-            var websitepages = result.OrderByDescending(x => x.Timestamp).Take(count.Value);
+            var websitepages = result.Skip(result.Count() - 10).OrderByDescending(x => x.Timestamp);
             return View(websitepages);
         }
-
-
 
         public async Task<int?> UrlQueueCount()
         {
@@ -313,9 +310,8 @@ namespace MVCWebRole.Controllers
             {
                 TableQuerySegment<WebsitePage> segmentResult = await errorTable
                     .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
+                results.AddRange(segmentResult.Results);
                 continuationToken = segmentResult.ContinuationToken;
-                results.AddRange(segmentResult);
-
             } while (continuationToken != null);
             var websitepages = results.OrderByDescending(r => r.Timestamp);
             return PartialView(websitepages.ToPagedList((int)pageNumber, pageSize));
@@ -339,7 +335,7 @@ namespace MVCWebRole.Controllers
             {
                 TableQuerySegment<WebsitePage> segmentResult = await websitePageMasterTable
                     .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
-                result.AddRange(segmentResult);
+                result.AddRange(segmentResult.Results);
                 continuationToken = segmentResult.ContinuationToken;
             } while (continuationToken != null);
             return View(result.OrderByDescending(r => r.Clicks).ToPagedList((int)pageNumber, pageSize));

@@ -59,7 +59,6 @@ namespace MVCWebRole.Models
             this.PublishDate = null;
             this.Title = "Title";
             this.Content = "Content Preview Not Available";
-            this.Clicks = 0;
         }
 
         public WebsitePage(string partitionKey, string rowKey)
@@ -76,7 +75,6 @@ namespace MVCWebRole.Models
             this.ErrorDetails = string.Empty;
             this.Title = "Title";
             this.Content = "Content Preview Not Available";
-            this.Clicks = 0;
         }
 
         private string Generate256HashCode(string s)
