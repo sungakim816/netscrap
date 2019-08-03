@@ -44,7 +44,7 @@
     <div id="worker-role-status" class="container justify-content-md-center"></div>
 
     @*Modal for latest indexed sites*@
-    <div class="container">
+    <div class="container align-content-center">
         <div id="latest-indexed-website" class="text-white">
             <div class="text-center">
                 <div class="spinner-grow text-success" style="width: 3rem; height: 3rem;" role="status">
@@ -161,7 +161,7 @@
             xmlhttp.onreadystatechange = function () {
                 if (this.readyState == 4 && this.status == 200) {
                     $("#command-response-content").html(this.responseText);
-                    $("#url-input").html("");
+                    $("#url-input").val("");
                 }
             };
             xmlhttp.open('GET', '@Url.Action("AddSeedUrl", "Dashboard")' +'?url=' + url, true);

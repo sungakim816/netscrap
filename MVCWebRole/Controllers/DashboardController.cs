@@ -44,13 +44,13 @@ namespace MVCWebRole.Controllers
             domainTable = tableClient.GetTableReference("DomainTable");
             roleStatusTable = tableClient.GetTableReference("RoleStatus");
 
-            commandQueue.CreateIfNotExistsAsync();
-            errorTable.CreateIfNotExistsAsync();
-            websitePageMasterTable.CreateIfNotExistsAsync();
-            urlQueue.CreateIfNotExistsAsync();
-            seedUrlQueue.CreateIfNotExistsAsync();
+            commandQueue.CreateIfNotExists();
+            errorTable.CreateIfNotExists();
+            websitePageMasterTable.CreateIfNotExists();
+            urlQueue.CreateIfNotExists();
+            seedUrlQueue.CreateIfNotExists();
             roleStatusTable.CreateIfNotExists();
-            domainTable.CreateIfNotExistsAsync();
+            domainTable.CreateIfNotExists();
         }
 
         // GET: Dashboard
@@ -91,23 +91,11 @@ namespace MVCWebRole.Controllers
         public ActionResult ShowLatestIndexed(int? count)
         {
             count = count ?? 10;
-            var domains = domainTable
-                .ExecuteQuery(new TableQuery<DomainObject>()
-                .Select(new string[] { "PartitionKey" }));
             var websitePages = new List<WebsitePage>();
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>();
-            foreach (var domain in domains)
-            {
-                 rangeQuery = rangeQuery.Select(new string[] { "PartitionKey", "RowKey", "Timestamp", "SubDomain", "Title" })
-                    .Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, domain.PartitionKey));
-                websitePages.AddRange(
-                    websitePageMasterTable
-                    .ExecuteQuery(rangeQuery)
-                    .OrderByDescending(x => x.Timestamp)
-                    .Take(count.Value)
-                    );     
-            }
-            return View(websitePages.OrderByDescending(x => x.Timestamp).Take(count.Value));
+            rangeQuery = rangeQuery.Select(new string[] { "PartitionKey", "RowKey", "DateCrawled", "Title", "SubDomain" });
+            websitePages.AddRange(websitePageMasterTable.ExecuteQuery(rangeQuery));
+            return View(websitePages.OrderByDescending(x => x.DateCrawled).Take(count.Value));
         }
 
         public async Task<int?> UrlQueueCount()
@@ -254,7 +242,7 @@ namespace MVCWebRole.Controllers
                 .ToList();
                 foreach (string tableName in tableNames)
                 {
-                    CloudTable table = tableClient.GetTableReference(tableName); 
+                    CloudTable table = tableClient.GetTableReference(tableName);
                     await table.DeleteIfExistsAsync();  // delete domain tables
                     await table.CreateIfNotExistsAsync(); // re create
                 }
@@ -272,13 +260,13 @@ namespace MVCWebRole.Controllers
         {
             bool response;
             try
-            {          
+            {
                 await ClearUrlQueue();
                 await ClearIndexedUrls();
                 response = true;  // set response true if successful
             }
             catch (Exception)
-            {              
+            {
                 response = false;  // false if something went wrong
             }
 
@@ -310,7 +298,7 @@ namespace MVCWebRole.Controllers
                 results.AddRange(segmentResult.Results);
                 continuationToken = segmentResult.ContinuationToken;
             } while (continuationToken != null);
-            var websitepages = results.OrderByDescending(r => r.Timestamp);
+            var websitepages = results.OrderByDescending(r => r.DateCrawled);
             return PartialView(websitepages.ToPagedList((int)pageNumber, pageSize));
         }
 

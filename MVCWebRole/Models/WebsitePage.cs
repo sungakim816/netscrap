@@ -29,6 +29,8 @@ namespace MVCWebRole.Models
 
         public string ErrorDetails { get; set; }
 
+        public DateTime DateCrawled { get; set; }
+
         [Required]
         public string Url
         {
@@ -59,6 +61,7 @@ namespace MVCWebRole.Models
             this.PublishDate = null;
             this.Title = "Title";
             this.Content = "Content Preview Not Available";
+            this.DateCrawled = DateTime.Now;
         }
 
         public WebsitePage(string partitionKey, string rowKey)
@@ -75,6 +78,7 @@ namespace MVCWebRole.Models
             this.ErrorDetails = string.Empty;
             this.Title = "Title";
             this.Content = "Content Preview Not Available";
+            this.DateCrawled = DateTime.Now;
         }
 
         private string Generate256HashCode(string s)
