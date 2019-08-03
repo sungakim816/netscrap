@@ -14,7 +14,6 @@ using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -45,7 +44,7 @@ namespace Crawler
         HtmlWeb webGet;
 
         private PerformanceCounter cpuCounter;
-      
+
         private List<WebsitePage> container; // Container for Website pages to be inserted to the Table (needed for batch operation)
         private RoleStatus workerStatus; // object worker status reporting
         private readonly HashAlgorithm algorithm = SHA256.Create();
@@ -61,6 +60,9 @@ namespace Crawler
         private readonly DomainParser domainParser = new DomainParser(new WebTldRuleProvider()); // domain parser
         private List<string> stopwords;
 
+        /// <summary>
+        /// Method for Initializing everything
+        /// </summary>
         private void Initialize()
         {
             storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
@@ -105,7 +107,7 @@ namespace Crawler
             {
                 OptionFixNestedTags = true
             };
-            disallowedCharacters = new[] { '?', ',', ':', ';', '!', '&', '(', ')', '"'};
+            disallowedCharacters = new[] { '?', ',', ':', ';', '!', '&', '(', ')', '"' };
             // downloader
             webGet = new HtmlWeb();
             container = new List<WebsitePage>();
@@ -122,6 +124,10 @@ namespace Crawler
             ClearRoleStatusTableContent(this.GetType().Namespace);
         }
 
+        /// <summary>
+        /// Method for Reading the command Queue
+        /// </summary>
+        /// <returns></returns>
         private async Task ReadCommandQueue()
         {
             string currentCommand = string.Empty;
@@ -145,6 +151,10 @@ namespace Crawler
             }
         }
 
+        /// <summary>
+        /// Method for Clearing Role Status table
+        /// </summary>
+        /// <param name="partitionKey">Namespace of the WorkerRole (eg. Crawler)</param>
         private void ClearRoleStatusTableContent(string partitionKey)
         {
             TableQuery<RoleStatus> query = new TableQuery<RoleStatus>()
@@ -162,6 +172,10 @@ namespace Crawler
             }
         }
 
+        /// <summary>
+        /// Method for Updating worker status
+        /// </summary>
+        /// <returns></returns>
         private async Task UpdateWorkerStatus()
         {
             workerStatus.CPU = Convert.ToInt64(cpuCounter.NextValue());
@@ -175,6 +189,10 @@ namespace Crawler
             await roleStatusTable.ExecuteAsync(insertOrMerge);
         }
 
+        /// <summary>
+        /// Method for updating internal state (Role Status reporting purposes)
+        /// </summary>
+        /// <returns></returns>
         private async Task UpdateInternalState()
         {
             int? urlQueueCount = await CountQueueMessages(urlQueue);
@@ -200,7 +218,11 @@ namespace Crawler
             currenStateDescription = States[currentStateNumber];
         }
 
-        // Generic Method For Counting Queue Message Content
+        /// <summary>
+        /// Generic method for counting queue message
+        /// </summary>
+        /// <param name="queue"></param>
+        /// <returns></returns>
         private async Task<int?> CountQueueMessages(CloudQueue queue)
         {
             await queue.FetchAttributesAsync();
@@ -235,6 +257,9 @@ namespace Crawler
             return result;
         }
 
+        /// <summary>
+        /// Build-in Method for stopping the whole process
+        /// </summary>
         public override void OnStop()
         {
             Trace.TraceInformation("Crawler Worker is stopping");
@@ -244,6 +269,11 @@ namespace Crawler
             Trace.TraceInformation("Crawler Worker has stopped");
         }
 
+        /// <summary>
+        /// Build-in method for executing methods during 'OnRun' State
+        /// </summary>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         private async Task RunAsync(CancellationToken cancellationToken)
         {
             // TODO: Replace the following with your own logic.
@@ -301,7 +331,11 @@ namespace Crawler
             }
         }
 
-        // method for actual crawling and saving to the database
+        /// <summary>
+        /// Method for Crawling and parsing Html page
+        /// </summary>
+        /// <param name="url"></param>
+        /// <returns></returns>
         private async Task Crawl(string url)
         {
             if (string.IsNullOrEmpty(url) || string.IsNullOrWhiteSpace(url))  // if url is empty, exit immediately 
@@ -431,7 +465,7 @@ namespace Crawler
             {
                 domainDictionary.Add(urlDomain, urlDomain);
                 DomainObject domainObject = new DomainObject(urlDomain);
-                TableOperation insertOrMerge = TableOperation.InsertOrMerge(domainObject);
+                TableOperation insertOrMerge = TableOperation.InsertOrMerge(domainObject); // Table operation insertOrMerge
                 await domainTable.ExecuteAsync(insertOrMerge);
             }
             CloudTable table = tableClient.GetTableReference(urlDomain);  // create a table using url domain as a name
@@ -446,10 +480,20 @@ namespace Crawler
                 container.Add(page); // add page to the container
             }
             TableOperation insertOperation = TableOperation.InsertOrMerge(MainWebsitePageObject);  // insert main website page object to the database
-            await websitePageMasterTable.ExecuteAsync(insertOperation);
+            try
+            {
+                await websitePageMasterTable.ExecuteAsync(insertOperation); // try insert to the database
+            }
+            catch (Exception)
+            { }
             await BatchInsertToDatabase(minimumWebSiteCount);  // batch insert operation
         }
 
+        /// <summary>
+        /// Method for generating valid keywords from an input string
+        /// </summary>
+        /// <param name="query"></param>
+        /// <returns name="filteredKeywords"></returns>
         private List<string> GetValidKeywords(string query)
         {
             if (string.IsNullOrEmpty(query) || string.IsNullOrWhiteSpace(query))
@@ -474,20 +518,30 @@ namespace Crawler
                 {
                     continue;
                 }
-                filteredKeywords.Add(keyword);
+                filteredKeywords.Add(keyword); // add to the list
             }
             return filteredKeywords;
         }
 
+        /// <summary>
+        /// Method for Inserting Error Page Object
+        /// </summary>
+        /// <param name="page"></param>
+        /// <returns></returns>
         private async Task PushErrorPageObject(WebsitePage page)
         {
             TableOperation insertOrMerge = TableOperation.InsertOrMerge(page);
             await errorTable.ExecuteAsync(insertOrMerge);
         }
 
+        /// <summary>
+        /// Actual method For pushing new entries to the database
+        /// </summary>
+        /// <param name="min"></param>
+        /// <returns></returns>
         private async Task BatchInsertToDatabase(int min)
         {
-            if (!(container.Count >= min))
+            if (!(container.Count >= min)) // check if there's enough element to push to the database
             {
                 return;
             }
@@ -500,6 +554,12 @@ namespace Crawler
             container.Clear();
         }
 
+        /// <summary>
+        /// Batch Insert Operation for optimization purposes, 
+        /// </summary>
+        /// <param name="tName">Name of the table</param>
+        /// <param name="list">List of Object</param>
+        /// <returns></returns>
         private async Task BatchInsertViaTableName(string tName, List<WebsitePage> list)
         {
             CloudTable table = tableClient.GetTableReference(tName);
@@ -523,6 +583,11 @@ namespace Crawler
             }
         }
 
+        /// <summary>
+        /// Return hashed version of a string
+        /// </summary>
+        /// <param name="s"></param>
+        /// <returns name="sBuilder.ToString()"></returns>
         private string Generate256HashCode(string s) // used for hashing string
         {
             byte[] data = algorithm.ComputeHash(Encoding.UTF8.GetBytes(s));
