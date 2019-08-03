@@ -227,6 +227,7 @@ namespace Crawler
             ServicePointManager.DefaultConnectionLimit = 12;
             // For information on handling configuration changes
             // see the MSDN topic at https://go.microsoft.com/fwlink/?LinkId=166357.
+            RoleEnvironment.TraceSource.Switch.Level = SourceLevels.Information;
             bool result = base.OnStart();
             Trace.TraceInformation("Crawler Worker has been started");
             Initialize();

@@ -11,7 +11,7 @@ namespace MVCWebRole.Models
     public class WebsitePage : TableEntity
     {
         private readonly HashAlgorithm algorithm = SHA256.Create();
-        private readonly DomainParser domainParser = new DomainParser(new WebTldRuleProvider());
+        private DomainParser domainParser = new DomainParser(new WebTldRuleProvider());
         private string url;
 
         [Required]

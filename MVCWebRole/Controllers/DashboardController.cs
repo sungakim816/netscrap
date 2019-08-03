@@ -30,7 +30,8 @@ namespace MVCWebRole.Controllers
 
         public DashboardController()
         {
-            storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
+            storageAccount = CloudStorageAccount.Parse(
+                RoleEnvironment.GetConfigurationSettingValue("StorageConnectionString"));
             queueClient = storageAccount.CreateCloudQueueClient();
             tableClient = storageAccount.CreateCloudTableClient();
 
@@ -87,32 +88,26 @@ namespace MVCWebRole.Controllers
         [HttpGet]
         [Route("Dashboard/ShowLatestIndexed")]
         [Route("Dashboard/Show/Latest/{count:regex(^[1-9]{0,3}$)}")]
-        public async Task<ActionResult> ShowLatestIndexed(int? count)
+        public ActionResult ShowLatestIndexed(int? count)
         {
-            if (!count.HasValue)
-            {
-                count = 10;
-            }
+            count = count ?? 10;
             var domains = domainTable
                 .ExecuteQuery(new TableQuery<DomainObject>()
-                .Select(new List<string> { "PartitionKey" }));
-            var result = new List<WebsitePage>();
+                .Select(new string[] { "PartitionKey" }));
+            var websitePages = new List<WebsitePage>();
+            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>();
             foreach (var domain in domains)
             {
-                TableContinuationToken continuationToken = null;
-                TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
-                    .Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, domain.PartitionKey))
-                    .Select(new List<string> { "Timestamp", "Title", "PartitionKey", "RowKey", "SubDomain" });
-                do
-                {
-                    TableQuerySegment<WebsitePage> partialResult = await websitePageMasterTable
-                        .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
-                    continuationToken = partialResult.ContinuationToken;
-                    result.AddRange(partialResult.Results.OrderByDescending(x => x.Timestamp).Take(10));
-                } while (continuationToken != null);
+                 rangeQuery = rangeQuery.Select(new string[] { "PartitionKey", "RowKey", "Timestamp", "SubDomain", "Title" })
+                    .Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, domain.PartitionKey));
+                websitePages.AddRange(
+                    websitePageMasterTable
+                    .ExecuteQuery(rangeQuery)
+                    .OrderByDescending(x => x.Timestamp)
+                    .Take(count.Value)
+                    );     
             }
-            var websitePages = result.OrderByDescending(x => x.Timestamp).Take(count.Value);
-            return View(websitePages);
+            return View(websitePages.OrderByDescending(x => x.Timestamp).Take(count.Value));
         }
 
         public async Task<int?> UrlQueueCount()
@@ -123,8 +118,8 @@ namespace MVCWebRole.Controllers
         public async Task<int?> IndexedWebsiteCount()
         {
             List<string> keys = domainTable
-                .ExecuteQuery(new TableQuery<WebsitePagePartitionKey>()
-                .Select(new List<string> { "PartitionKey" }))
+                .ExecuteQuery(new TableQuery<DomainObject>()
+                .Select(new string[] { "PartitionKey" }))
                 .Select(x => x.PartitionKey)
                 .ToList();
             return await CountTableRows(websitePageMasterTable, keys);
@@ -134,15 +129,15 @@ namespace MVCWebRole.Controllers
         {
             TableQuery<DynamicTableEntity> tableQuery = new TableQuery<DynamicTableEntity>().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, partitionKey)).Select(new string[] { "PartitionKey" });
             string resolver(string pk, string rk, DateTimeOffset ts, IDictionary<string, EntityProperty> props, string etag) => props.ContainsKey("PartitionKey") ? props["PartitionKey"].StringValue : null;
-            List<string> entities = new List<string>();
             TableContinuationToken continuationToken = null;
+            int total = 0;
             do
             {
                 TableQuerySegment<string> tableQueryResult = await table.ExecuteQuerySegmentedAsync(tableQuery, resolver, continuationToken);
                 continuationToken = tableQueryResult.ContinuationToken;
-                entities.AddRange(tableQueryResult.Results);
+                total += tableQueryResult.Results.Count();
             } while (continuationToken != null);
-            return entities.Count;
+            return total;
         }
 
         private async Task<int?> CountTableRows(CloudTable table, List<string> partitionKeys)
@@ -248,20 +243,20 @@ namespace MVCWebRole.Controllers
             bool response;
             try
             {
-                await websitePageMasterTable.DeleteIfExistsAsync();
-                await websitePageMasterTable.CreateIfNotExistsAsync();
-                await errorTable.DeleteIfExistsAsync();
-                await errorTable.CreateIfNotExistsAsync();
+                await websitePageMasterTable.DeleteIfExistsAsync(); // delete websitePageMaster Table
+                await websitePageMasterTable.CreateIfNotExistsAsync(); // recreate the table
+                await errorTable.DeleteIfExistsAsync(); // delete error table
+                await errorTable.CreateIfNotExistsAsync(); // recreate
                 List<string> tableNames = domainTable
-                .ExecuteQuery(new TableQuery<WebsitePagePartitionKey>()
-                .Select(new List<string> { "PartitionKey" }))
+                .ExecuteQuery(new TableQuery<DomainObject>()
+                .Select(new string[] { "PartitionKey" }))
                 .Select(x => x.PartitionKey)
                 .ToList();
                 foreach (string tableName in tableNames)
                 {
-                    CloudTable table = tableClient.GetTableReference(tableName);
-                    await table.DeleteIfExistsAsync();
-                    await table.CreateIfNotExistsAsync();
+                    CloudTable table = tableClient.GetTableReference(tableName); 
+                    await table.DeleteIfExistsAsync();  // delete domain tables
+                    await table.CreateIfNotExistsAsync(); // re create
                 }
                 response = true;
             }
@@ -277,16 +272,14 @@ namespace MVCWebRole.Controllers
         {
             bool response;
             try
-            {
-                // set response true if successful
+            {          
                 await ClearUrlQueue();
                 await ClearIndexedUrls();
-                response = true;
+                response = true;  // set response true if successful
             }
             catch (Exception)
-            {
-                // false if something went wrong
-                response = false;
+            {              
+                response = false;  // false if something went wrong
             }
 
             return View(response);
@@ -306,10 +299,7 @@ namespace MVCWebRole.Controllers
         {
             // count, results per page
             int pageSize = 10; // items per pages
-            if (!pageNumber.HasValue)
-            {
-                pageNumber = 1;
-            }
+            pageNumber = pageNumber.HasValue ? pageNumber : 1;
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>();
             TableContinuationToken continuationToken = null;
             List<WebsitePage> results = new List<WebsitePage>();
@@ -330,10 +320,7 @@ namespace MVCWebRole.Controllers
         public async Task<ActionResult> PopularSearch(int? pageNumber)
         {
             int pageSize = 10;
-            if (!pageNumber.HasValue)
-            {
-                pageNumber = 1;
-            }
+            pageNumber = pageNumber.HasValue ? pageNumber : 1;
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
                 .Where(TableQuery.GenerateFilterConditionForInt("Clicks", QueryComparisons.GreaterThan, 0));
             List<WebsitePage> result = new List<WebsitePage>();
