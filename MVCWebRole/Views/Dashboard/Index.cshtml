@@ -101,16 +101,16 @@
         setInterval("UpdateWorkerStatus()", 3000);
 
         UpdateIndexedWebsiteCount();
-        setInterval("UpdateIndexedWebsiteCount()", 10000);
+        setInterval("UpdateIndexedWebsiteCount()", 5000);
 
         UpdateLatestIndexedPage(10);
-        setInterval("UpdateLatestIndexedPage(10)", 10000);
+        setInterval("UpdateLatestIndexedPage(10)", 60000);
 
         UpdateErrorList();
-        setInterval("UpdateErrorList()", 30000);
+        setInterval("UpdateErrorList()", 60000);
 
         UpdatePopularSearch();
-        setInterval("UpdatePopularSearch()", 30000);
+        setInterval("UpdatePopularSearch()", 60000);
 
         $('#error-list').on('click', 'a', function (e) {
             e.preventDefault();  //prevent action link normal functionality

@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Web;
 using System.Web.Mvc;
 using PagedList;
+using System.Diagnostics;
 
 namespace MVCWebRole.Controllers
 {
@@ -99,13 +100,27 @@ namespace MVCWebRole.Controllers
         [HttpGet]
         [Route("Dashboard/ShowLatestIndexed")]
         [Route("Dashboard/Show/Latest/{count:regex(^[1-9]{0,3}$)}")]
-        public ActionResult ShowLatestIndexed(int? count)
+        public async Task<ActionResult> ShowLatestIndexed(int? count)
         {
             count = count ?? 10;
+            TableContinuationToken continuationToken = null;
+            var domains = domainTable
+                .ExecuteQuery(new TableQuery<DomainObject>().Select(new string[] { "PartitionKey" }))
+                .Select(x => x.PartitionKey);
+            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
+                .Select(new string[] { "PartitionKey", "RowKey", "DateCrawled", "Title", "SubDomain" }); ;
             var websitePages = new List<WebsitePage>();
-            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>();
-            rangeQuery = rangeQuery.Select(new string[] { "PartitionKey", "RowKey", "DateCrawled", "Title", "SubDomain" });
-            websitePages.AddRange(websitePageMasterTable.ExecuteQuery(rangeQuery));
+            foreach (string domain in domains)
+            {
+                rangeQuery = rangeQuery.Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, domain));
+                do
+                {
+                    TableQuerySegment<WebsitePage> rangeResult = await websitePageMasterTable
+                        .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
+                    websitePages.AddRange(rangeResult.Results.OrderByDescending(x => x.DateCrawled).Take(count.Value));
+                    continuationToken = rangeResult.ContinuationToken;
+                } while (continuationToken != null);
+            }
             return View(websitePages.OrderByDescending(x => x.DateCrawled).Take(count.Value));
         }
 
@@ -140,13 +155,16 @@ namespace MVCWebRole.Controllers
         /// <returns></returns>
         protected async Task<int?> GetCountOfEntitiesInPartition(CloudTable table, string partitionKey)
         {
-            TableQuery<DynamicTableEntity> tableQuery = new TableQuery<DynamicTableEntity>().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, partitionKey)).Select(new string[] { "PartitionKey" });
+            TableQuery<DynamicTableEntity> tableQuery = new TableQuery<DynamicTableEntity>()
+                .Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, partitionKey))
+                .Select(new string[] { "PartitionKey" });
             string resolver(string pk, string rk, DateTimeOffset ts, IDictionary<string, EntityProperty> props, string etag) => props.ContainsKey("PartitionKey") ? props["PartitionKey"].StringValue : null;
             TableContinuationToken continuationToken = null;
             int total = 0;
             do
             {
-                TableQuerySegment<string> tableQueryResult = await table.ExecuteQuerySegmentedAsync(tableQuery, resolver, continuationToken);
+                TableQuerySegment<string> tableQueryResult = await table
+                    .ExecuteQuerySegmentedAsync(tableQuery, resolver, continuationToken);
                 continuationToken = tableQueryResult.ContinuationToken;
                 total += tableQueryResult.Results.Count();
             } while (continuationToken != null);

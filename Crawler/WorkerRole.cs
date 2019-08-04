@@ -87,45 +87,36 @@ namespace Crawler
             domainTable.CreateIfNotExists();
             roleStatusTable.CreateIfNotExists();
             errorTable.CreateIfNotExistsAsync();
-            websitePageMasterTable.CreateIfNotExists();
-            // queues
-            urlQueue.CreateIfNotExists();
-            commandQueue.CreateIfNotExists();
-            // blobs
-            netscrapContainer.CreateIfNotExistsAsync();
-            // stopwords blob
-            stopwordsBlob = netscrapContainer.GetBlockBlobReference("stopwords.csv");
+            websitePageMasterTable.CreateIfNotExists();         
+            urlQueue.CreateIfNotExists(); // queues
+            commandQueue.CreateIfNotExists();          
+            netscrapContainer.CreateIfNotExistsAsync(); // blobs        
+            stopwordsBlob = netscrapContainer.GetBlockBlobReference("stopwords.csv");  // stopwords blob
             StreamReader streamReader = new StreamReader(stopwordsBlob.OpenRead());
             string line;
             // stop word lists
             while ((line = streamReader.ReadLine()) != null)
             {
                 stopwords.Add(line.ToLower());
-            }
-            // html document parser
+            }          
             htmlDoc = new HtmlDocument()
             {
                 OptionFixNestedTags = true
-            };
-            disallowedCharacters = new[] { '?', ',', ':', ';', '!', '&', '(', ')', '"' };
-            // downloader
-            webGet = new HtmlWeb();
+            };  // html document parser
+            disallowedCharacters = new[] { '?', ',', ':', ';', '!', '&', '(', ')', '"' };        
+            webGet = new HtmlWeb(); // downloader
             container = new List<WebsitePage>();
             instanceId = RoleEnvironment.CurrentRoleInstance.Id;
             currentStateNumber = (byte)STATES.STOP;
             currenStateDescription = States[currentStateNumber];
             currentWorkingUrl = string.Empty;
-
-            // role workerStatus
-            workerStatus = new RoleStatus(this.GetType().Namespace, instanceId);
-            // cpu counter
-            cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total", true);
-            // clear role workerStatus table
-            ClearRoleStatusTableContent(this.GetType().Namespace);
+            workerStatus = new RoleStatus(this.GetType().Namespace, instanceId);  // role workerStatus      
+            cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total", true);  // cpu counter           
+            ClearRoleStatusTableContent(this.GetType().Namespace); // clear role workerStatus table
         }
 
         /// <summary>
-        /// Method for Reading the command Queue
+        /// Method for Reading the Command Queue
         /// </summary>
         /// <returns></returns>
         private async Task ReadCommandQueue()

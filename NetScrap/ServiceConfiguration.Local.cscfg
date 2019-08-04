@@ -28,7 +28,7 @@
     </Certificates>
   </Role>
   <Role name="Crawler">
-    <Instances count="3" />
+    <Instances count="2" />
     <ConfigurationSettings>
       <Setting name="StorageConnectionString" value="UseDevelopmentStorage=true" />
       <Setting name="Microsoft.WindowsAzure.Plugins.RemoteAccess.Enabled" value="true" />
