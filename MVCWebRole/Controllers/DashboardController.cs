@@ -112,11 +112,11 @@ namespace MVCWebRole.Controllers
             var websitePages = new List<WebsitePage>();
             foreach (string domain in domains)
             {
-                rangeQuery = rangeQuery.Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, domain));
+                var tableQuery = rangeQuery.Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, domain));
                 do
                 {
                     TableQuerySegment<WebsitePage> rangeResult = await websitePageMasterTable
-                        .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
+                        .ExecuteQuerySegmentedAsync(tableQuery, continuationToken);
                     websitePages.AddRange(rangeResult.Results.OrderByDescending(x => x.DateCrawled).Take(count.Value));
                     continuationToken = rangeResult.ContinuationToken;
                 } while (continuationToken != null);
