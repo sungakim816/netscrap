@@ -60,6 +60,12 @@ namespace MVCWebRole.Controllers
             return View();
         }
 
+        /// <summary>
+        /// Show Details of a specific crawled page using partitionkey and rowkey
+        /// </summary>
+        /// <param name="partitionkey"></param>
+        /// <param name="rowkey"></param>
+        /// <returns></returns>
         [HttpGet]
         [Route("Dashboard/ShowIndexedDetails")]
         [Route("Dashboard/Show/Latest/Details/{partitionkey}/{rowkey}")]
@@ -85,6 +91,11 @@ namespace MVCWebRole.Controllers
             return View(result);
         }
 
+        /// <summary>
+        /// Method for showing 'N' Latest Indexed Websites
+        /// </summary>
+        /// <param name="count">N</param>
+        /// <returns></returns>
         [HttpGet]
         [Route("Dashboard/ShowLatestIndexed")]
         [Route("Dashboard/Show/Latest/{count:regex(^[1-9]{0,3}$)}")]
@@ -98,11 +109,19 @@ namespace MVCWebRole.Controllers
             return View(websitePages.OrderByDescending(x => x.DateCrawled).Take(count.Value));
         }
 
+        /// <summary>
+        /// Method for Counting messages in URL Queue 
+        /// </summary>
+        /// <returns></returns>
         public async Task<int?> UrlQueueCount()
         {
             return await CountQueueMessagesAsync(urlQueue);
         }
 
+        /// <summary>
+        /// Method for Counting Indexed Websites
+        /// </summary>
+        /// <returns></returns>
         public async Task<int?> IndexedWebsiteCount()
         {
             List<string> keys = domainTable
@@ -113,6 +132,12 @@ namespace MVCWebRole.Controllers
             return await CountTableRows(websitePageMasterTable, keys);
         }
 
+        /// <summary>
+        /// Generic Method for counting entities on any Table
+        /// </summary>
+        /// <param name="table"></param>
+        /// <param name="partitionKey"></param>
+        /// <returns></returns>
         protected async Task<int?> GetCountOfEntitiesInPartition(CloudTable table, string partitionKey)
         {
             TableQuery<DynamicTableEntity> tableQuery = new TableQuery<DynamicTableEntity>().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, partitionKey)).Select(new string[] { "PartitionKey" });
@@ -128,6 +153,12 @@ namespace MVCWebRole.Controllers
             return total;
         }
 
+        /// <summary>
+        /// Generic Method for counting rows of any Tables
+        /// </summary>
+        /// <param name="table"></param>
+        /// <param name="partitionKeys"></param>
+        /// <returns></returns>
         private async Task<int?> CountTableRows(CloudTable table, List<string> partitionKeys)
         {
             int? total = 0;
@@ -138,7 +169,11 @@ namespace MVCWebRole.Controllers
             return total;
         }
 
-        // generic method to count queue messages
+        /// <summary>
+        /// Generic Method for counting messages on any Queue
+        /// </summary>
+        /// <param name="queue"></param>
+        /// <returns></returns>
         private async Task<int?> CountQueueMessagesAsync(CloudQueue queue)
         {
             await queue.FetchAttributesAsync();
@@ -154,6 +189,11 @@ namespace MVCWebRole.Controllers
             return Uri.TryCreate(url, UriKind.Absolute, out _);
         }
 
+        /// <summary>
+        /// Method for adding Seed URL (Target Webiste)
+        /// </summary>
+        /// <param name="url"></param>
+        /// <returns></returns>
         [HttpGet]
         [Route("Dashboard/AddSeedUrl")]
         [Route("Dashboard/Seed/{url}")]
@@ -182,16 +222,30 @@ namespace MVCWebRole.Controllers
             return View(response);
         }
 
+
+        /// <summary>
+        /// Method to start all crawlers
+        /// </summary>
+        /// <returns></returns>
         public async Task<ActionResult> StartCrawler()
         {
             return View(await CommandCrawler("start"));
         }
 
+        /// <summary>
+        /// Method for stopping all crawlers
+        /// </summary>
+        /// <returns></returns>
         public async Task<ActionResult> StopCrawler()
         {
             return View(await CommandCrawler("stop"));
         }
 
+        /// <summary>
+        /// Method to issue a command to the crawlers
+        /// </summary>
+        /// <param name="command"></param>
+        /// <returns></returns>
         private async Task<bool?> CommandCrawler(string command)
         {
             CloudQueueMessage message = new CloudQueueMessage(command);
@@ -209,6 +263,10 @@ namespace MVCWebRole.Controllers
             return response;
         }
 
+        /// <summary>
+        /// Method to Clear URL Queue Contents
+        /// </summary>
+        /// <returns></returns>
         [HttpPost]
         public async Task<ActionResult> ClearUrlQueue()
         {
@@ -225,6 +283,10 @@ namespace MVCWebRole.Controllers
             return View(response);
         }
 
+        /// <summary>
+        /// Method to Delete all Indexed URLs
+        /// </summary>
+        /// <returns></returns>
         [HttpPost]
         public async Task<ActionResult> ClearIndexedUrls()
         {
@@ -255,6 +317,10 @@ namespace MVCWebRole.Controllers
             return View(response);
         }
 
+        /// <summary>
+        /// Method to clear everything, Indexed and Queue
+        /// </summary>
+        /// <returns></returns>
         [HttpPost]
         public async Task<ActionResult> ClearAll()
         {
@@ -273,6 +339,10 @@ namespace MVCWebRole.Controllers
             return View(response);
         }
 
+        /// <summary>
+        /// Method to display worker role statuses
+        /// </summary>
+        /// <returns></returns>
         [HttpGet]
         public ActionResult WorkerStatus()
         {
@@ -280,6 +350,11 @@ namespace MVCWebRole.Controllers
             return View(workerList);
         }
 
+        /// <summary>
+        /// Method to Display Webpages with errors
+        /// </summary>
+        /// <param name="pageNumber"></param>
+        /// <returns></returns>
         [HttpGet]
         [Route("Dashboard/ErrorList/")]
         [Route("Dashboard/Errors/{pageNumber:regex(^[1-9]{0,3}$)}")]
@@ -302,6 +377,11 @@ namespace MVCWebRole.Controllers
             return PartialView(websitepages.ToPagedList((int)pageNumber, pageSize));
         }
 
+        /// <summary>
+        /// Method to show most popular user queries/searches
+        /// </summary>
+        /// <param name="pageNumber"></param>
+        /// <returns></returns>
         [HttpGet]
         [Route("Dashboard/PopularSearch/")]
         [Route("Dashboard/Popular/Search/{pageNumber:regex(^[1-9]{0,3}$)}")]
