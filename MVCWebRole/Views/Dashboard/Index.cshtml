@@ -205,7 +205,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#url-queue-count").html(this.responseText);
-                        UpdateUrlQueueCount();
+                        setTimeout(UpdateUrlQueueCount, 3000);
                     }
                 };
             xmlhttp.open('POST', '@Url.Action("UrlQueueCount", "Dashboard")', true);
@@ -217,7 +217,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#indexed-website-count").html(this.responseText);
-                        UpdateIndexedWebsiteCount();
+                        setTimeout(UpdateIndexedWebsiteCount, 3000);
                     }
                 };
             xmlhttp.open('POST', '@Url.Action("IndexedWebsiteCount", "Dashboard")', true);
@@ -229,7 +229,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#latest-indexed-website").html(this.responseText);
-                        UpdateLatestIndexedPage(10);
+                        setTimeout(UpdateLatestIndexedPage, 30000, 10);
                     }
                 };
             xmlhttp.open('GET', '@Url.Action("ShowLatestIndexed", "Dashboard")' + "?count=" + count, true);
@@ -241,7 +241,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#error-list").html(this.responseText);
-                        UpdateErrorList();
+                        setTimeout(UpdateErrorList, 60000);
                     }
                 };
             xmlhttp.open('GET', '@Url.Action("ErrorList", "Dashboard")', true);
@@ -253,7 +253,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#popular-search").html(this.responseText);
-                        UpdatePopularSearch();
+                        setTimeout(UpdatePopularSearch, 60000);
                     }
                 };
                 xmlhttp.open('GET', '@Url.Action("PopularSearch", "Dashboard")', true);
@@ -265,7 +265,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#worker-role-status").html(this.responseText);
-                        UpdateWorkerStatus();
+                        setTimeout(UpdateWorkerStatus, 2000);
                     }
                 };
                 xmlhttp.open('GET', '@Url.Action("WorkerStatus", "Dashboard")', true);
