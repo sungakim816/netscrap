@@ -279,7 +279,7 @@ namespace MVCWebRole.Controllers
                 response = true;
             }
             catch (Exception)
-            { 
+            {
                 response = false;
             }
             return response;
