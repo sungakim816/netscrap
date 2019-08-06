@@ -102,7 +102,7 @@ namespace MVCWebRole.Controllers
         [Route("Dashboard/Show/Latest/{count:regex(^[1-9]{0,3}$)}")]
         public async Task<ActionResult> ShowLatestIndexed(int? count)
         {
-            count = count ?? 10 ;
+            count = count ?? 10;
             TableContinuationToken continuationToken = null;
             var domains = domainTable
                 .ExecuteQuery(new TableQuery<DomainObject>().Select(new string[] { "PartitionKey" }))
@@ -239,7 +239,6 @@ namespace MVCWebRole.Controllers
             }
             catch (Exception)
             {
-                Trace.TraceInformation("AddSeedUrl");
                 response = false;
             }
             return View(response);
@@ -280,8 +279,7 @@ namespace MVCWebRole.Controllers
                 response = true;
             }
             catch (Exception)
-            {
-                Trace.TraceInformation("CommandCrawler");
+            { 
                 response = false;
             }
             return response;
@@ -302,7 +300,6 @@ namespace MVCWebRole.Controllers
             }
             catch (Exception)
             {
-                Trace.TraceInformation("Clear Url Queue");
                 response = false;
             }
             return View(response);
@@ -337,7 +334,6 @@ namespace MVCWebRole.Controllers
             }
             catch (Exception)
             {
-                Trace.TraceInformation("Clear Indexed URLs");
                 response = false;
             }
             return View(response);
@@ -359,7 +355,6 @@ namespace MVCWebRole.Controllers
             }
             catch (Exception)
             {
-                Trace.TraceInformation("Clear All");
                 response = false;  // false if something went wrong
             }
 
