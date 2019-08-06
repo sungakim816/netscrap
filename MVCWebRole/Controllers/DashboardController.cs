@@ -102,7 +102,7 @@ namespace MVCWebRole.Controllers
         [Route("Dashboard/Show/Latest/{count:regex(^[1-9]{0,3}$)}")]
         public async Task<ActionResult> ShowLatestIndexed(int? count)
         {
-            count = count ?? 10;
+            count = count ?? 10 ;
             TableContinuationToken continuationToken = null;
             var domains = domainTable
                 .ExecuteQuery(new TableQuery<DomainObject>().Select(new string[] { "PartitionKey" }))
@@ -112,13 +112,15 @@ namespace MVCWebRole.Controllers
             var websitePages = new List<WebsitePage>();
             foreach (string domain in domains)
             {
+                TableQuerySegment<WebsitePage> rangeResult;
                 var tableQuery = rangeQuery.Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, domain));
                 do
                 {
-                    TableQuerySegment<WebsitePage> rangeResult = await websitePageMasterTable
-                        .ExecuteQuerySegmentedAsync(tableQuery, continuationToken);
+                    rangeResult = await websitePageMasterTable
+                       .ExecuteQuerySegmentedAsync(tableQuery, continuationToken);
                     websitePages.AddRange(rangeResult.Results.OrderByDescending(x => x.DateCrawled).Take(count.Value));
                     continuationToken = rangeResult.ContinuationToken;
+                    rangeResult.Results.Clear();
                 } while (continuationToken != null);
             }
             return View(websitePages.OrderByDescending(x => x.DateCrawled).Take(count.Value));
@@ -160,13 +162,15 @@ namespace MVCWebRole.Controllers
                 .Select(new string[] { "PartitionKey" });
             string resolver(string pk, string rk, DateTimeOffset ts, IDictionary<string, EntityProperty> props, string etag) => props.ContainsKey("PartitionKey") ? props["PartitionKey"].StringValue : null;
             TableContinuationToken continuationToken = null;
+            TableQuerySegment<string> tableQueryResult;
             int total = 0;
             do
             {
-                TableQuerySegment<string> tableQueryResult = await table
+                tableQueryResult = await table
                     .ExecuteQuerySegmentedAsync(tableQuery, resolver, continuationToken);
                 continuationToken = tableQueryResult.ContinuationToken;
                 total += tableQueryResult.Results.Count();
+                tableQueryResult.Results.Clear();
             } while (continuationToken != null);
             return total;
         }
@@ -235,6 +239,7 @@ namespace MVCWebRole.Controllers
             }
             catch (Exception)
             {
+                Trace.TraceInformation("AddSeedUrl");
                 response = false;
             }
             return View(response);
@@ -276,6 +281,7 @@ namespace MVCWebRole.Controllers
             }
             catch (Exception)
             {
+                Trace.TraceInformation("CommandCrawler");
                 response = false;
             }
             return response;
@@ -296,6 +302,7 @@ namespace MVCWebRole.Controllers
             }
             catch (Exception)
             {
+                Trace.TraceInformation("Clear Url Queue");
                 response = false;
             }
             return View(response);
@@ -330,6 +337,7 @@ namespace MVCWebRole.Controllers
             }
             catch (Exception)
             {
+                Trace.TraceInformation("Clear Indexed URLs");
                 response = false;
             }
             return View(response);
@@ -351,6 +359,7 @@ namespace MVCWebRole.Controllers
             }
             catch (Exception)
             {
+                Trace.TraceInformation("Clear All");
                 response = false;  // false if something went wrong
             }
 
@@ -384,15 +393,17 @@ namespace MVCWebRole.Controllers
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>();
             TableContinuationToken continuationToken = null;
             List<WebsitePage> results = new List<WebsitePage>();
+            TableQuerySegment<WebsitePage> segmentResult;
             do
             {
-                TableQuerySegment<WebsitePage> segmentResult = await errorTable
+                segmentResult = await errorTable
                     .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
                 results.AddRange(segmentResult.Results);
+                segmentResult.Results.Clear();
                 continuationToken = segmentResult.ContinuationToken;
             } while (continuationToken != null);
             var websitepages = results.OrderByDescending(r => r.DateCrawled);
-            return PartialView(websitepages.ToPagedList((int)pageNumber, pageSize));
+            return PartialView(websitepages.Take(100).ToPagedList((int)pageNumber, pageSize));
         }
 
         /// <summary>
@@ -411,14 +422,16 @@ namespace MVCWebRole.Controllers
                 .Where(TableQuery.GenerateFilterConditionForInt("Clicks", QueryComparisons.GreaterThan, 0));
             List<WebsitePage> result = new List<WebsitePage>();
             TableContinuationToken continuationToken = null;
+            TableQuerySegment<WebsitePage> segmentResult;
             do
             {
-                TableQuerySegment<WebsitePage> segmentResult = await websitePageMasterTable
+                segmentResult = await websitePageMasterTable
                     .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
                 result.AddRange(segmentResult.Results);
+                segmentResult.Results.Clear();
                 continuationToken = segmentResult.ContinuationToken;
             } while (continuationToken != null);
-            return View(result.OrderByDescending(r => r.Clicks).ToPagedList((int)pageNumber, pageSize));
+            return View(result.OrderByDescending(r => r.Clicks).Take(50).ToPagedList((int)pageNumber, pageSize));
         }
     }
 }
