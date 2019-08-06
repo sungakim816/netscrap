@@ -95,22 +95,16 @@
     <script>
         @*Scripts for Real Time Update*@
         UpdateUrlQueueCount();
-        setInterval("UpdateUrlQueueCount()", 2000);
+        UpdateIndexedWebsiteCount();
 
         UpdateWorkerStatus();
-        setInterval("UpdateWorkerStatus()", 3000);
-
-        UpdateIndexedWebsiteCount();
-        setInterval("UpdateIndexedWebsiteCount()", 5000);
+        
+        UpdateErrorList();
+        UpdatePopularSearch();
 
         UpdateLatestIndexedPage(10);
-        setInterval("UpdateLatestIndexedPage(10)", 60000);
 
-        UpdateErrorList();
-        setInterval("UpdateErrorList()", 60000);
-
-        UpdatePopularSearch();
-        setInterval("UpdatePopularSearch()", 60000);
+         @*End of Scripts for Real Time Update*@
 
         $('#error-list').on('click', 'a', function (e) {
             e.preventDefault();  //prevent action link normal functionality
@@ -142,17 +136,6 @@
             let url = document.getElementById(id);
             url.select();
             document.execCommand("copy");
-        }
-
-        function UpdateWorkerStatus() {
-            var xmlhttp = new XMLHttpRequest();
-                xmlhttp.onreadystatechange = function () {
-                    if (this.readyState == 4 && this.status == 200) {
-                        $("#worker-role-status").html(this.responseText);
-                    }
-                };
-                xmlhttp.open('GET', '@Url.Action("WorkerStatus", "Dashboard")', true);
-                xmlhttp.send();
         }
 
         function AddSeedUrl() {
@@ -222,6 +205,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#url-queue-count").html(this.responseText);
+                        UpdateUrlQueueCount();
                     }
                 };
             xmlhttp.open('POST', '@Url.Action("UrlQueueCount", "Dashboard")', true);
@@ -233,6 +217,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#indexed-website-count").html(this.responseText);
+                        UpdateIndexedWebsiteCount();
                     }
                 };
             xmlhttp.open('POST', '@Url.Action("IndexedWebsiteCount", "Dashboard")', true);
@@ -244,6 +229,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#latest-indexed-website").html(this.responseText);
+                        UpdateLatestIndexedPage(10);
                     }
                 };
             xmlhttp.open('GET', '@Url.Action("ShowLatestIndexed", "Dashboard")' + "?count=" + count, true);
@@ -255,6 +241,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#error-list").html(this.responseText);
+                        UpdateErrorList();
                     }
                 };
             xmlhttp.open('GET', '@Url.Action("ErrorList", "Dashboard")', true);
@@ -266,11 +253,25 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#popular-search").html(this.responseText);
+                        UpdatePopularSearch();
                     }
                 };
                 xmlhttp.open('GET', '@Url.Action("PopularSearch", "Dashboard")', true);
                 xmlhttp.send();
         }
+
+        function UpdateWorkerStatus() {
+            var xmlhttp = new XMLHttpRequest();
+                xmlhttp.onreadystatechange = function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        $("#worker-role-status").html(this.responseText);
+                        UpdateWorkerStatus();
+                    }
+                };
+                xmlhttp.open('GET', '@Url.Action("WorkerStatus", "Dashboard")', true);
+                xmlhttp.send();
+        }
+
 
     </script>
 }
