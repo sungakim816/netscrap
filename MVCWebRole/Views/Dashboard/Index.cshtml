@@ -265,7 +265,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#worker-role-status").html(this.responseText);
-                        setTimeout(UpdateWorkerStatus, 2000);
+                        setTimeout(UpdateWorkerStatus, 5000);
                     }
                 };
                 xmlhttp.open('GET', '@Url.Action("WorkerStatus", "Dashboard")', true);
