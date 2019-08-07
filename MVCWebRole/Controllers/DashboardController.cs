@@ -105,7 +105,7 @@ namespace MVCWebRole.Controllers
             count = count ?? 10;
             TableContinuationToken continuationToken = null;
             var domains = domainTable
-                .ExecuteQuery(new TableQuery<DomainObject>().Select(new string[] { "PartitionKey" }))
+                .ExecuteQuery(new TableQuery<DomainObject>())
                 .Select(x => x.PartitionKey);
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
                 .Select(new string[] { "PartitionKey", "RowKey", "DateCrawled", "Title", "SubDomain" }); ;
@@ -113,14 +113,14 @@ namespace MVCWebRole.Controllers
             foreach (string domain in domains)
             {
                 TableQuerySegment<WebsitePage> rangeResult;
-                var tableQuery = rangeQuery.Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, domain));
+                var tableQuery = rangeQuery
+                    .Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, domain));
                 do
                 {
                     rangeResult = await websitePageMasterTable
                        .ExecuteQuerySegmentedAsync(tableQuery, continuationToken);
-                    websitePages.AddRange(rangeResult.Results.OrderByDescending(x => x.DateCrawled).Take(count.Value));
+                    websitePages.AddRange(rangeResult.OrderByDescending(x => x.DateCrawled).Take(count.Value));
                     continuationToken = rangeResult.ContinuationToken;
-                    rangeResult.Results.Clear();
                 } while (continuationToken != null);
             }
             return View(websitePages.OrderByDescending(x => x.DateCrawled).Take(count.Value));
@@ -141,11 +141,10 @@ namespace MVCWebRole.Controllers
         /// <returns></returns>
         public async Task<int?> IndexedWebsiteCount()
         {
-            List<string> keys = domainTable
+            var keys = domainTable
                 .ExecuteQuery(new TableQuery<DomainObject>()
                 .Select(new string[] { "PartitionKey" }))
-                .Select(x => x.PartitionKey)
-                .ToList();
+                .Select(x => x.PartitionKey);
             return await CountTableRows(websitePageMasterTable, keys);
         }
 
@@ -169,8 +168,7 @@ namespace MVCWebRole.Controllers
                 tableQueryResult = await table
                     .ExecuteQuerySegmentedAsync(tableQuery, resolver, continuationToken);
                 continuationToken = tableQueryResult.ContinuationToken;
-                total += tableQueryResult.Results.Count();
-                tableQueryResult.Results.Clear();
+                total += tableQueryResult.Count();
             } while (continuationToken != null);
             return total;
         }
@@ -181,7 +179,7 @@ namespace MVCWebRole.Controllers
         /// <param name="table"></param>
         /// <param name="partitionKeys"></param>
         /// <returns></returns>
-        private async Task<int?> CountTableRows(CloudTable table, List<string> partitionKeys)
+        private async Task<int?> CountTableRows(CloudTable table, IEnumerable<string> partitionKeys)
         {
             int? total = 0;
             foreach (string key in partitionKeys)
@@ -385,7 +383,8 @@ namespace MVCWebRole.Controllers
             // count, results per page
             int pageSize = 15; // items per pages
             pageNumber = pageNumber.HasValue ? pageNumber : 1;
-            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>();
+            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
+                .Select(new string[] { "Title", "Domain", "ErrorTag", "Url", "Rowkey" });
             TableContinuationToken continuationToken = null;
             List<WebsitePage> results = new List<WebsitePage>();
             TableQuerySegment<WebsitePage> segmentResult;
@@ -414,7 +413,8 @@ namespace MVCWebRole.Controllers
             int pageSize = 15;
             pageNumber = pageNumber.HasValue ? pageNumber : 1;
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
-                .Where(TableQuery.GenerateFilterConditionForInt("Clicks", QueryComparisons.GreaterThan, 0));
+                .Where(TableQuery.GenerateFilterConditionForInt("Clicks", QueryComparisons.GreaterThan, 0)).
+                Select(new string[] { "Title", "Domain", "Clicks", "RowKey", "Url" });
             List<WebsitePage> result = new List<WebsitePage>();
             TableContinuationToken continuationToken = null;
             TableQuerySegment<WebsitePage> segmentResult;

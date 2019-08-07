@@ -5,10 +5,8 @@
     string urlQueueCount = string.Empty;
 }
 @Html.Partial("_DashboardNavBar")
-
-<br />
 @*Queue Count*@
-<div class="container">
+<div class="container p-3">
     <div class="row">
         <div class="col-3 p-3 mb-3" style="max-width: initial; min-width:initial">
             <div class="bg-transparent text-white h2 text-center">
@@ -104,9 +102,6 @@
         updatePopularSearch();
 
         updateLatestIndexedPage(10);
-
-        updateCrawledDomain();
-
          @*End of Scripts for Real Time Update*@
 
         $('#error-list').on('click', 'a', function (e) {
@@ -208,7 +203,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#url-queue-count").html(this.responseText);
-                        setTimeout(updateUrlQueueCount, 3000);
+                        setTimeout(updateUrlQueueCount, 5000);
                     }
                 };
             xmlhttp.open('POST', '@Url.Action("UrlQueueCount", "Dashboard")', true);
@@ -220,7 +215,7 @@
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#indexed-website-count").html(this.responseText);
-                        setTimeout(updateIndexedWebsiteCount, 3000);
+                        setTimeout(updateIndexedWebsiteCount, 5000);
                     }
                 };
             xmlhttp.open('POST', '@Url.Action("IndexedWebsiteCount", "Dashboard")', true);
