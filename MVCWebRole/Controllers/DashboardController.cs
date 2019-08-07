@@ -383,7 +383,7 @@ namespace MVCWebRole.Controllers
         public async Task<ActionResult> ErrorList(int? pageNumber)
         {
             // count, results per page
-            int pageSize = 10; // items per pages
+            int pageSize = 15; // items per pages
             pageNumber = pageNumber.HasValue ? pageNumber : 1;
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>();
             TableContinuationToken continuationToken = null;
@@ -398,7 +398,7 @@ namespace MVCWebRole.Controllers
                 continuationToken = segmentResult.ContinuationToken;
             } while (continuationToken != null);
             var websitepages = results.OrderByDescending(r => r.DateCrawled);
-            return PartialView(websitepages.Take(100).ToPagedList((int)pageNumber, pageSize));
+            return PartialView(websitepages.Take(150).ToPagedList((int)pageNumber, pageSize));
         }
 
         /// <summary>
@@ -411,7 +411,7 @@ namespace MVCWebRole.Controllers
         [Route("Dashboard/Popular/Search/{pageNumber:regex(^[1-9]{0,3}$)}")]
         public async Task<ActionResult> PopularSearch(int? pageNumber)
         {
-            int pageSize = 10;
+            int pageSize = 15;
             pageNumber = pageNumber.HasValue ? pageNumber : 1;
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
                 .Where(TableQuery.GenerateFilterConditionForInt("Clicks", QueryComparisons.GreaterThan, 0));
@@ -426,7 +426,19 @@ namespace MVCWebRole.Controllers
                 segmentResult.Results.Clear();
                 continuationToken = segmentResult.ContinuationToken;
             } while (continuationToken != null);
-            return View(result.OrderByDescending(r => r.Clicks).Take(50).ToPagedList((int)pageNumber, pageSize));
+            return View(result.OrderByDescending(r => r.Clicks).Take(150).ToPagedList((int)pageNumber, pageSize));
+        }
+
+        /// <summary>
+        /// Method for showing Crawled Domains
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet]
+        [Route("Dashboard/CrawledDomain")]
+        public ActionResult CrawledDomain()
+        {
+            var crawledDomain = domainTable.ExecuteQuery(new TableQuery<DomainObject>());
+            return View(crawledDomain);
         }
     }
 }

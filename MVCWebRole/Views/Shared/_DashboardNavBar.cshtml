@@ -15,10 +15,10 @@
                     Crawler
                 </a>
                 <div class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
-                    <button class="dropdown-item" name="startcrawlbutton" onclick="SendCommand(this.value)" value="start" data-toggle="modal" data-target="#command-response">
+                    <button class="dropdown-item" name="startcrawlbutton" onclick="sendCommand(this.value)" value="start" data-toggle="modal" data-target="#command-response">
                         Start
                     </button>
-                    <button class="dropdown-item" name="stopcrawlbutton" onclick="SendCommand(this.value)" value="stop" data-toggle="modal" data-target="#command-response">
+                    <button class="dropdown-item" name="stopcrawlbutton" onclick="sendCommand(this.value)" value="stop" data-toggle="modal" data-target="#command-response">
                         Stop
                     </button>
                 </div>
@@ -28,15 +28,15 @@
                     Clear
                 </a>
                 <div class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
-                    <button class="dropdown-item" name="clearqueue" onclick="ClearUrlQueue()" data-toggle="modal" data-target="#command-response">Queue</button>
-                    <button class="dropdown-item" name="clearindex" onclick="ClearIndexedUrls()" data-toggle="modal" data-target="#command-response">Indexed</button>
-                    <button class="dropdown-item" name="clearall" onclick="ClearAll()" data-toggle="modal" data-target="#command-response">Everything</button>
+                    <button class="dropdown-item" name="clearqueue" onclick="clearUrlQueue()" data-toggle="modal" data-target="#command-response">Queue</button>
+                    <button class="dropdown-item" name="clearindex" onclick="clearIndexedUrls()" data-toggle="modal" data-target="#command-response">Indexed</button>
+                    <button class="dropdown-item" name="clearall" onclick="clearAll()" data-toggle="modal" data-target="#command-response">Everything</button>
                 </div>
             </li>
         </ul>
         <div class="form-inline my-2 my-lg-0 m-2 w-75">
             <input id="url-input" class="form-control mr-sm-2 rounded-input w-50" type="search" placeholder="https://website.com" aria-label="Add">
-            <button data-toggle="modal" data-target="#command-response" onclick="AddSeedUrl()" class="btn btn-outline-warning" type="button">Add</button>
+            <button data-toggle="modal" data-target="#command-response" onclick="addSeedUrl()" class="btn btn-outline-warning" type="button">Add</button>
         </div>
     </div>
 </nav>

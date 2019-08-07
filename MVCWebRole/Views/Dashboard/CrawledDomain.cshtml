@@ -1,0 +1,19 @@
+﻿@model IEnumerable<MVCWebRole.Models.DomainObject>
+@{
+    Layout = null;
+}
+
+@if (Model == null || !Model.Any())
+{
+
+    <span>Empty...</span>
+
+}
+else
+{
+
+    foreach (var domain in Model)
+    {
+        <span>@domain.PartitionKey</span>
+    }
+}

@@ -5,7 +5,12 @@
 <div class="p-4" id="popular-search-view">
     @if (Model != null && Model.Any())
     {
-        <p class="h3 text-white bg-transparent p-2">Popular Searches</p>
+        <p class="h3 text-white bg-transparent p-2">
+            Popular Searches&nbsp;
+            <button onclick="updatePopularSearch()" class="bg-transparent border-0 btn">
+                <img src="@Url.Content("~/Content/refreshbutton.svg")" alt="Refresh Popular Search" class="rounded-circle" style="max-width: 30px;">
+            </button>
+        </p>
         <div class="list-group bg-light rounded-circle">
             @foreach (var page in Model)
             {

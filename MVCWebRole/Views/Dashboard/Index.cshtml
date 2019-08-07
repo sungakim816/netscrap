@@ -7,6 +7,7 @@
 @Html.Partial("_DashboardNavBar")
 
 <br />
+@*Queue Count*@
 <div class="container">
     <div class="row">
         <div class="col-3 p-3 mb-3" style="max-width: initial; min-width:initial">
@@ -24,6 +25,7 @@
             </div>
         </div>
 
+        @*Crawled Sites Count*@
         <div class="col-3 p-3 mb-3" style="max-width: initial; min-width:initial">
             <div class="bg-transparent text-white h2 text-center">
                 <div class="card border-success text-center bg-transparent rounded-input">
@@ -38,7 +40,6 @@
                 </div>
             </div>
         </div>
-
     </div>
     @*View for worker role status*@
     <div id="worker-role-status" class="container justify-content-md-center"></div>
@@ -94,15 +95,17 @@
 @section scripts {
     <script>
         @*Scripts for Real Time Update*@
-        UpdateUrlQueueCount();
-        UpdateIndexedWebsiteCount();
+        updateUrlQueueCount();
+        updateIndexedWebsiteCount();
 
-        UpdateWorkerStatus();
-        
-        UpdateErrorList();
-        UpdatePopularSearch();
+        updateWorkerStatus();
 
-        UpdateLatestIndexedPage(10);
+        updateErrorList();
+        updatePopularSearch();
+
+        updateLatestIndexedPage(10);
+
+        updateCrawledDomain();
 
          @*End of Scripts for Real Time Update*@
 
@@ -138,7 +141,7 @@
             document.execCommand("copy");
         }
 
-        function AddSeedUrl() {
+        function addSeedUrl() {
             var url = document.getElementById("url-input").value;
             var xmlhttp = new XMLHttpRequest();
             xmlhttp.onreadystatechange = function () {
@@ -151,7 +154,7 @@
             xmlhttp.send();
         }
 
-        function SendCommand(str) {
+        function sendCommand(str) {
             var xmlhttp = new XMLHttpRequest();
             xmlhttp.onreadystatechange = function () {
                 if (this.readyState == 4 && this.status == 200) {
@@ -167,7 +170,7 @@
             xmlhttp.send();
         }
 
-        function ClearUrlQueue() {
+        function clearUrlQueue() {
             var xmlhttp = new XMLHttpRequest();
             xmlhttp.onreadystatechange = function () {
                 if (this.readyState == 4 && this.status == 200) {
@@ -178,7 +181,7 @@
             xmlhttp.send();
         }
 
-        function ClearIndexedUrls() {
+        function clearIndexedUrls() {
             var xmlhttp = new XMLHttpRequest();
             xmlhttp.onreadystatechange = function () {
                 if (this.readyState == 4 && this.status == 200) {
@@ -189,7 +192,7 @@
             xmlhttp.send();
         }
 
-        function ClearAll() {
+        function clearAll() {
             var xmlhttp = new XMLHttpRequest();
             xmlhttp.onreadystatechange = function () {
                 if (this.readyState == 4 && this.status == 200) {
@@ -200,75 +203,84 @@
             xmlhttp.send();
         }
 
-        function UpdateUrlQueueCount() {
+        function updateUrlQueueCount() {
             var xmlhttp = new XMLHttpRequest();
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#url-queue-count").html(this.responseText);
-                        setTimeout(UpdateUrlQueueCount, 3000);
+                        setTimeout(updateUrlQueueCount, 3000);
                     }
                 };
             xmlhttp.open('POST', '@Url.Action("UrlQueueCount", "Dashboard")', true);
             xmlhttp.send();
         }
 
-        function UpdateIndexedWebsiteCount() {
+        function updateIndexedWebsiteCount() {
             var xmlhttp = new XMLHttpRequest();
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#indexed-website-count").html(this.responseText);
-                        setTimeout(UpdateIndexedWebsiteCount, 3000);
+                        setTimeout(updateIndexedWebsiteCount, 3000);
                     }
                 };
             xmlhttp.open('POST', '@Url.Action("IndexedWebsiteCount", "Dashboard")', true);
             xmlhttp.send();
         }
 
-        function UpdateLatestIndexedPage(count) {
+        function updateLatestIndexedPage(count) {
             var xmlhttp = new XMLHttpRequest();
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#latest-indexed-website").html(this.responseText);
-                        setTimeout(UpdateLatestIndexedPage, 30000, 10);
+                        setTimeout(updateLatestIndexedPage, 30000, 10);
                     }
                 };
             xmlhttp.open('GET', '@Url.Action("ShowLatestIndexed", "Dashboard")' + "?count=" + count, true);
             xmlhttp.send();
         }
 
-        function UpdateErrorList() {
+        function updateErrorList() {
             var xmlhttp = new XMLHttpRequest();
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#error-list").html(this.responseText);
-                        setTimeout(UpdateErrorList, 60000);
                     }
                 };
             xmlhttp.open('GET', '@Url.Action("ErrorList", "Dashboard")', true);
             xmlhttp.send();
         }
 
-        function UpdatePopularSearch() {
+        function updatePopularSearch() {
             var xmlhttp = new XMLHttpRequest();
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#popular-search").html(this.responseText);
-                        setTimeout(UpdatePopularSearch, 60000);
                     }
                 };
                 xmlhttp.open('GET', '@Url.Action("PopularSearch", "Dashboard")', true);
                 xmlhttp.send();
         }
 
-        function UpdateWorkerStatus() {
+        function updateWorkerStatus() {
             var xmlhttp = new XMLHttpRequest();
                 xmlhttp.onreadystatechange = function () {
                     if (this.readyState == 4 && this.status == 200) {
                         $("#worker-role-status").html(this.responseText);
-                        setTimeout(UpdateWorkerStatus, 5000);
+                        setTimeout(updateWorkerStatus, 5000);
                     }
                 };
                 xmlhttp.open('GET', '@Url.Action("WorkerStatus", "Dashboard")', true);
+                xmlhttp.send();
+        }
+
+        function updateCrawledDomain() {
+               var xmlhttp = new XMLHttpRequest();
+                xmlhttp.onreadystatechange = function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        $("#crawled-domain").html(this.responseText);
+                    }
+                };
+                xmlhttp.open('GET', '@Url.Action("CrawledDomain", "Dashboard")', true);
                 xmlhttp.send();
         }
 

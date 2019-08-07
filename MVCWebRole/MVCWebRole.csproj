@@ -236,6 +236,7 @@
     <Content Include="Content\forklift.png" />
     <Content Include="Content\net-scrap-logo.png" />
     <Content Include="Content\PagedList.css" />
+    <Content Include="Content\refreshbutton.svg" />
     <Content Include="favicon.ico" />
     <Content Include="Global.asax" />
     <Content Include="Content\Site.css" />
@@ -319,6 +320,7 @@
     <Content Include="Views\Shared\_MainPageNavBar.cshtml" />
     <Content Include="Views\Dashboard\ClearAll.cshtml" />
     <Content Include="Views\Dashboard\PopularSearch.cshtml" />
+    <Content Include="Views\Dashboard\CrawledDomain.cshtml" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="App_Data\" />
