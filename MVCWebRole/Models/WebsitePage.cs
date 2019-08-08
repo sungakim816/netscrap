@@ -23,7 +23,7 @@ namespace MVCWebRole.Models
 
         public string SubDomain { get; set; }
 
-        public Int16 Clicks { get; set; }
+        public Int64 Clicks { get; set; }
 
         public string ErrorTag { get; set; }
 
