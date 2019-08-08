@@ -35,6 +35,7 @@ namespace Collector
         private CloudQueue urlQueue;
         private CloudQueue seedUrlQueue;
         private CloudQueue commandQueue;
+        private CloudQueue indexedCountQueue;
 
         private PerformanceCounter cpuCounter;
 
@@ -94,6 +95,8 @@ namespace Collector
             seedUrlQueue = queueClient.GetQueueReference("seedurls");
             // Initialize Queue (Command queue)
             commandQueue = queueClient.GetQueueReference("command");
+            // Initialize indexedCount queue
+            indexedCountQueue = queueClient.GetQueueReference("indexedcount");
             currentSeedUrl = string.Empty;
             // Create robots.txt parser
             robotTxtParser = new Robots();
@@ -102,6 +105,11 @@ namespace Collector
             urlQueue.CreateIfNotExistsAsync();
             seedUrlQueue.CreateIfNotExistsAsync();
             commandQueue.CreateIfNotExistsAsync();
+            bool isCreated = indexedCountQueue.CreateIfNotExists();
+            if (isCreated)
+            {
+                indexedCountQueue.AddMessageAsync(new CloudQueueMessage("0"));
+            }
             errorTable.CreateIfNotExistsAsync();
             Trace.TraceInformation("Url Collector Worker has been Initialize");
             webGet = new HtmlWeb();
@@ -222,11 +230,11 @@ namespace Collector
                         Reset(); // Reset
                         Thread.Sleep(500); // sleep for 0.5s
                         break;
-                    case (byte)STATES.STOP:                        
+                    case (byte)STATES.STOP:
                         Reset();
-                        Thread.Sleep(10000); // wait 10s before Reading again
+                        Thread.Sleep(5000); // wait 5s before Reading again
                         break;
-                    case (byte)STATES.IDLE:               
+                    case (byte)STATES.IDLE:
                         Reset();
                         Thread.Sleep(5000); // wait 5s before Reading again
                         break;
@@ -234,8 +242,35 @@ namespace Collector
             }
         }
 
+        private async Task UpdateIndexedCount()
+        {
+            bool isDone = false;
+            while (!isDone)
+            {
+                try
+                {
+                    CloudQueueMessage indexedCount = await indexedCountQueue.GetMessageAsync();
+                    if (indexedCount == null)
+                    {
+                        Thread.Sleep(500);
+                    }
+                    else
+                    {
+                        await indexedCountQueue.ClearAsync();
+                        var count = Convert.ToInt64(indexedCount.AsString) + 1;
+                        await indexedCountQueue.AddMessageAsync(new CloudQueueMessage(count.ToString()));
+                        isDone = true;
+                    }
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+            }
+        }
+
         private void Reset()
-        {            
+        {
             urlList.Clear(); // clear url runtime queue
             currentSeedUrl = string.Empty;  // Empty seed url
         }
@@ -246,7 +281,7 @@ namespace Collector
             try
             {
                 CloudQueueMessage seedUrlObject = await seedUrlQueue.GetMessageAsync();
-                url = seedUrlObject.AsString;           
+                url = seedUrlObject.AsString;
                 if (seedUrlObject.DequeueCount >= instanceCount)  // if all the role instances read the message, delete it from the queue,
                 {
                     await seedUrlQueue.DeleteMessageAsync(seedUrlObject);
@@ -262,7 +297,7 @@ namespace Collector
             }
             return url.Trim(' ').TrimEnd('/');
         }
-     
+
         private async Task CollectUrlsToCrawlThroughSiteMaps(string target)  // Collect urls using sitemaps
         {
             if (string.IsNullOrEmpty(target) || string.IsNullOrWhiteSpace(target))
@@ -272,10 +307,10 @@ namespace Collector
             if (robotTxtParser.GetSiteMaps().Count == 0)
             {
                 return;
-            }        
+            }
             XmlDocument document = new XmlDocument();  // initialize a XmlDocument Parser
             foreach (string sitemapUrl in robotTxtParser.GetSiteMaps())
-            {           
+            {
                 await ReadCommandQueue(); // check command queue
                 if (currentStateNumber == (byte)STATES.STOP)
                 {
@@ -293,15 +328,15 @@ namespace Collector
                         document.Load(sitemapUrl);
                     }
                     catch (Exception ex)
-                    {                         
+                    {
                         await PushErrorPageObject(sitemapUrl, "REQUEST ERROR", ex.Message); // push an error
                         continue;
                     }
-                }               
+                }
                 if (document.DocumentElement.Name.ToLower() == "sitemapindex") // check if site map url is a sitemapindex (collection of other sitemaps)
                 {
                     await CollectUrlThroughSitemapIndex(document);
-                }  
+                }
                 else if (document.DocumentElement.Name.ToLower() == "urlset") // if site map url is a actual sitemap (parent node: urlset, collection of actual urls of pages of the target seed url)
                 {
                     await CollectUrlsToCrawlFromSitemap(sitemapUrl);
@@ -324,7 +359,7 @@ namespace Collector
                 await CollectUrlsToCrawlFromSitemap(url);
             }
         }
-    
+
         private async Task CollectUrlsToCrawlFromSitemap(string link) // use this method if 'link' is a link to an actual sitemap
         {
             XmlDocument document = new XmlDocument();
@@ -340,7 +375,7 @@ namespace Collector
             }
             XmlNodeList urls = document.GetElementsByTagName("url");
             foreach (XmlNode url in urls)
-            {            
+            {
                 await ReadCommandQueue(); // check command queue
                 if (currentStateNumber == (byte)STATES.STOP)
                 {
@@ -352,7 +387,7 @@ namespace Collector
                 {
                     Trace.TraceInformation("URL " + urlString + " Already Exists in the Runtime URL Queue");
                     continue;
-                }                
+                }
                 urlList.Add(key, urlString); // Insert to the queue (runtime and azure queue)
                 if (robotTxtParser.IsURLAllowed(urlString))
                 {
@@ -393,7 +428,7 @@ namespace Collector
                 .Select(a => a.GetAttributeValue("href", null))
                 .Where(u => (!string.IsNullOrEmpty(u) && u.StartsWith("/")));
             foreach (string page in links)
-            {                 
+            {
                 await ReadCommandQueue(); // check command queue
                 if (currentStateNumber == (byte)STATES.STOP)
                 {
@@ -403,13 +438,9 @@ namespace Collector
                 string a = page.TrimStart('/');
                 a = currentSeedUrl + "/" + a;
                 string key = Generate256HashCode(a);
-                if (!robotTxtParser.IsURLAllowed(a))
-                {                
-                    continue; // skip disallowed urls
-                }
-                if (urlList.ContainsKey(key))
-                {                   
-                    continue; // skip urls already saved
+                if (!robotTxtParser.IsURLAllowed(a) || urlList.ContainsKey(key))
+                {
+                    continue; // skip disallowed urls and already collected urls
                 }
                 // add to runtime url list
                 urlList.Add(key, a);
@@ -433,7 +464,7 @@ namespace Collector
             for (int i = 0; i < data.Length; i++)   // Loop through each byte of the hashed data and format each one as a hexadecimal string
             {
                 sBuilder.Append(data[i].ToString("x2"));
-            }            
+            }
             return sBuilder.ToString(); // Return the hexadecimal string.
         }
 

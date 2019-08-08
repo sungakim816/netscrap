@@ -39,6 +39,7 @@ namespace Crawler
         private CloudQueueClient queueClient;
         private CloudQueue urlQueue;
         private CloudQueue commandQueue;
+        private CloudQueue indexedCountQueue;
         private HtmlDocument htmlDoc;
         private char[] disallowedCharacters;
         HtmlWeb webGet;
@@ -80,6 +81,7 @@ namespace Crawler
             // queues
             urlQueue = queueClient.GetQueueReference("urlstocrawl");
             commandQueue = queueClient.GetQueueReference("command");
+            indexedCountQueue = queueClient.GetQueueReference("indexedcount");
             // blobs
             netscrapContainer = blobClient.GetContainerReference("netscrap");
             // Create if not exist
@@ -87,9 +89,14 @@ namespace Crawler
             domainTable.CreateIfNotExists();
             roleStatusTable.CreateIfNotExists();
             errorTable.CreateIfNotExistsAsync();
-            websitePageMasterTable.CreateIfNotExists();         
+            websitePageMasterTable.CreateIfNotExists();
             urlQueue.CreateIfNotExists(); // queues
-            commandQueue.CreateIfNotExists();          
+            commandQueue.CreateIfNotExists();
+            bool isCreated = indexedCountQueue.CreateIfNotExists();
+            if(isCreated) // if just created initialize value to zero
+            {
+                indexedCountQueue.AddMessageAsync(new CloudQueueMessage("0"));
+            }
             netscrapContainer.CreateIfNotExistsAsync(); // blobs        
             stopwordsBlob = netscrapContainer.GetBlockBlobReference("stopwords.csv");  // stopwords blob
             StreamReader streamReader = new StreamReader(stopwordsBlob.OpenRead());
@@ -98,12 +105,12 @@ namespace Crawler
             while ((line = streamReader.ReadLine()) != null)
             {
                 stopwords.Add(line.ToLower());
-            }          
+            }
             htmlDoc = new HtmlDocument()
             {
                 OptionFixNestedTags = true
             };  // html document parser
-            disallowedCharacters = new[] { '?', ',', ':', ';', '!', '&', '(', ')', '"' };        
+            disallowedCharacters = new[] { '?', ',', ':', ';', '!', '&', '(', ')', '"' };
             webGet = new HtmlWeb(); // downloader
             container = new List<WebsitePage>();
             instanceId = RoleEnvironment.CurrentRoleInstance.Id;
@@ -290,15 +297,12 @@ namespace Crawler
                                 url = string.Empty;
                             }
                             await Crawl(url);
-                            if (retrieveUrl != null) // delete queue message
+                            try
                             {
-                                try
-                                {
-                                    await urlQueue.DeleteMessageAsync(retrieveUrl);
-                                }
-                                catch (Exception)
-                                { /* Other Process deleted the message already */}
+                                await urlQueue.DeleteMessageAsync(retrieveUrl);
                             }
+                            catch (Exception)
+                            { /* Other Process deleted the message already */}
                             Thread.Sleep(500); // wait 0.5s before Reading again
                         }
                         break;
@@ -432,7 +436,7 @@ namespace Crawler
                     .GetAttributeValue("content", string.Empty);
                 if (!keywords.ToLower().Contains("nba")) // check if page is not about nba
                 {
-                    return;  // exit method immediately
+                    return;  // exit method immediately this will not be added to the database
                 }
             }
             // check for any errors
@@ -450,7 +454,6 @@ namespace Crawler
                 MainWebsitePageObject.ErrorDetails = errorDetails;
                 await PushErrorPageObject(MainWebsitePageObject); // push to ErrorTable
             }
-
             // if all tests passed,          
             if (!domainDictionary.ContainsKey(urlDomain))  // add domain name to the 'domain table', and 'domainDictionary'
             {
@@ -470,14 +473,45 @@ namespace Crawler
                 };
                 container.Add(page); // add page to the container
             }
-            TableOperation insertOperation = TableOperation.InsertOrMerge(MainWebsitePageObject);  // insert main website page object to the database
-            try
+            bool exists = await Exists(websitePageMasterTable, MainWebsitePageObject.PartitionKey, MainWebsitePageObject.RowKey);
+            if (!exists) // push if does not exists
             {
+                TableOperation insertOperation = TableOperation.InsertOrMerge(MainWebsitePageObject);  // insert main website page object to the database 
                 await websitePageMasterTable.ExecuteAsync(insertOperation); // try insert to the database
-            }
-            catch (Exception)
-            { }
+                await UpdateIndexedCount();
+            }          
             await BatchInsertToDatabase(minimumWebSiteCount);  // batch insert operation
+        }
+
+        /// <summary>
+        /// Method to Update Indexed Website Count Queue
+        /// </summary>
+        /// <returns></returns>
+        private async Task UpdateIndexedCount()
+        {
+            bool isDone = false;
+            while (!isDone)
+            {
+                try
+                {
+                    CloudQueueMessage indexedCount = await indexedCountQueue.GetMessageAsync(); // get message queue
+                    if (indexedCount == null)
+                    {
+                        Thread.Sleep(100); // sleep for 500 ms before reading again
+                    }
+                    else // replace the value
+                    {
+                        await indexedCountQueue.ClearAsync(); 
+                        var count = Convert.ToInt64(indexedCount.AsString) + 1;
+                        await indexedCountQueue.AddMessageAsync(new CloudQueueMessage(count.ToString()));
+                        isDone = true; // eixt the loop
+                    }
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+            }
         }
 
         /// <summary>
@@ -588,6 +622,24 @@ namespace Crawler
                 sBuilder.Append(data[i].ToString("x2"));
             }
             return sBuilder.ToString();  // Return the hexadecimal string.
+        }
+
+        /// <summary>
+        /// Method for checking if Website Page object Already exists in the database
+        /// </summary>
+        /// <param name="table"></param>
+        /// <param name="partitionKey"></param>
+        /// <param name="rowKey"></param>
+        /// <returns>bool</returns>
+        private async Task<bool> Exists(CloudTable table, string partitionKey, string rowKey)
+        {
+            TableOperation retrieve = TableOperation.Retrieve(partitionKey, rowKey);
+            var result = await table.ExecuteAsync(retrieve);
+            if(result.Result != null)
+            {
+                return true;
+            }
+            return false;
         }
     }
 }

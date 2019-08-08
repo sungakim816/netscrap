@@ -7,10 +7,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Web;
 using System.Web.Mvc;
 using PagedList;
-using System.Diagnostics;
+using System.Threading;
 
 namespace MVCWebRole.Controllers
 {
@@ -83,25 +82,13 @@ namespace MVCWebRole.Controllers
             CloudTable websitePageMasterTable = tableClient
                 .GetTableReference("WebsitePageMasterTable");
             await websitePageMasterTable.CreateIfNotExistsAsync();
-            // TableContinuationToken continuationToken = null;
             TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>()
                 .Select(new string[] { "PartitionKey", "RowKey", "DateCrawled", "Title", "SubDomain" })
                 .Take(count.Value);
             var results = new List<WebsitePage>();
             results.AddRange(websitePageMasterTable.ExecuteQuery(rangeQuery));
-
-            //int c = 0;
-            //do
-            //{
-            //    TableQuerySegment<WebsitePage> rangeResult = await websitePageMasterTable
-            //       .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
-            //    results.AddRange(rangeResult.OrderByDescending(x => x.DateCrawled).Take(10));
-            //    continuationToken = rangeResult.ContinuationToken;
-            //    c++;
-            //    Trace.TraceInformation(c + ":Kim Sunga");
-            //} while (continuationToken != null);
             List<WebsitePage> websitePages = new List<WebsitePage>();
-            websitePages.AddRange(results.OrderByDescending(x => x.DateCrawled).Take(count.Value));
+            websitePages.AddRange(results.OrderByDescending(x => x.DateCrawled));
             return View(websitePages);
         }
 
@@ -122,17 +109,26 @@ namespace MVCWebRole.Controllers
         /// <returns></returns>
         public async Task<int?> IndexedWebsiteCount()
         {
-            CloudTable websitePageMasterTable = tableClient
-                .GetTableReference("WebsitePageMasterTable");
-            CloudTable domainTable = tableClient.GetTableReference("DomainTable");
-            await websitePageMasterTable.CreateIfNotExistsAsync();
-            await domainTable.CreateIfNotExistsAsync();
-
-            var keys = domainTable
-                .ExecuteQuery(new TableQuery<DomainObject>()
-                .Select(new string[] { "PartitionKey" }))
-                .Select(x => x.PartitionKey);
-            return await CountTableRows(websitePageMasterTable, keys);
+            CloudQueue indexedCountQueue = queueClient.GetQueueReference("indexedcount");
+            bool isCreated = await indexedCountQueue.CreateIfNotExistsAsync();
+            if(isCreated)
+            {
+                await indexedCountQueue.AddMessageAsync(new CloudQueueMessage("0"));
+                return 0;
+            }
+            bool isDone = false;
+            CloudQueueMessage message = null;
+            while(!isDone)
+            {
+                message = await indexedCountQueue.PeekMessageAsync();
+                if (message == null)
+                {
+                    Thread.Sleep(100);
+                    continue;
+                }
+                isDone = true;
+            }
+            return Convert.ToInt32(message.AsString);
         }
 
         /// <summary>
@@ -304,12 +300,16 @@ namespace MVCWebRole.Controllers
             CloudTable websitePageMasterTable = tableClient.GetTableReference("WebsitePageMasterTable");
             CloudTable errorTable = tableClient.GetTableReference("ErrorTable");
             CloudTable domainTable = tableClient.GetTableReference("DomainTable");
+            CloudQueue indexedCountQueue = queueClient.GetQueueReference("indexedcount");
             try
             {
                 await websitePageMasterTable.DeleteIfExistsAsync(); // delete websitePageMaster Table
                 await websitePageMasterTable.CreateIfNotExistsAsync(); // recreate the table
                 await errorTable.DeleteIfExistsAsync(); // delete error table
                 await errorTable.CreateIfNotExistsAsync(); // recreate
+                await indexedCountQueue.DeleteIfExistsAsync();
+                await indexedCountQueue.CreateIfNotExistsAsync();
+                await indexedCountQueue.AddMessageAsync(new CloudQueueMessage("0"));
                 List<string> tableNames = domainTable
                 .ExecuteQuery(new TableQuery<DomainObject>()
                 .Select(new string[] { "PartitionKey" }))
