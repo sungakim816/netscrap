@@ -10,6 +10,8 @@ using System.Threading.Tasks;
 using System.Web.Mvc;
 using PagedList;
 using System.Threading;
+using System.Web;
+using System.Web.Caching;
 
 namespace MVCWebRole.Controllers
 {
@@ -366,17 +368,27 @@ namespace MVCWebRole.Controllers
         /// <param name="pageNumber"></param>
         /// <returns></returns>
         [HttpGet]
-        [OutputCache(Duration = 600, VaryByParam = "pageNumber")]
+        [OutputCache(Duration = 300, VaryByParam = "pageNumber")]
         [Route("Dashboard/ErrorList/")]
         [Route("Dashboard/Errors/{pageNumber:regex(^[1-9]{0,3}$)}")]
         public ActionResult ErrorList(int? pageNumber)
         {
             int pageSize = 10; // items per pages
-            pageNumber = pageNumber.HasValue ? pageNumber : 1;
-            CloudTable errorTable = tableClient.GetTableReference("ErrorTable");
-            TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>().Take(150);
+            pageNumber = pageNumber.HasValue ? pageNumber : 1; // page number
             List<WebsitePage> websitePages = new List<WebsitePage>();
-            websitePages.AddRange(errorTable.ExecuteQuery(rangeQuery));
+            var errorList = (List<WebsitePage>)HttpRuntime.Cache.Get("errorList"); // get cache item          
+            if (errorList == null) // if empty
+            {
+                CloudTable errorTable = tableClient.GetTableReference("ErrorTable");
+                TableQuery<WebsitePage> rangeQuery = new TableQuery<WebsitePage>().Take(150);
+                websitePages.AddRange(errorTable.ExecuteQuery(rangeQuery));
+                HttpRuntime.Cache.Insert("errorList", websitePages, null,
+                DateTime.Now.AddMinutes(5), Cache.NoSlidingExpiration, CacheItemPriority.NotRemovable, null); // save to runtime cache
+            }
+            else
+            {
+                websitePages.AddRange(errorList);
+            }
             return PartialView(websitePages.ToPagedList((int)pageNumber, pageSize));
         }
 
@@ -386,7 +398,7 @@ namespace MVCWebRole.Controllers
         /// <param name="pageNumber"></param>
         /// <returns></returns>
         [HttpGet]
-        [OutputCache(Duration = 600, VaryByParam = "pageNumber")]
+        [OutputCache(Duration = 300, VaryByParam = "pageNumber")]
         [Route("Dashboard/PopularSearch/")]
         [Route("Dashboard/Popular/Search/{pageNumber:regex(^[1-9]{0,3}$)}")]
         public async Task<ActionResult> PopularSearch(int? pageNumber)
@@ -399,20 +411,29 @@ namespace MVCWebRole.Controllers
                 .Where(TableQuery.GenerateFilterConditionForInt("Clicks", QueryComparisons.GreaterThan, 0))
                 .Select(new string[] { "Title", "Domain", "Clicks", "RowKey", "Url" })
                 .Take(pageSize * 10);
-            List<WebsitePage> results = new List<WebsitePage>();
-            TableContinuationToken continuationToken = null;
-            TableQuerySegment<WebsitePage> segmentResult;
-            do
+            List<WebsitePage> websitePages = new List<WebsitePage>();            
+            var popularSearch = (List<WebsitePage>)HttpRuntime.Cache.Get("popularSearch"); // get cache item 
+            if (popularSearch == null) // if data cache is null
             {
-                segmentResult = await websitePageMasterTable
-                    .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
-                results.AddRange(segmentResult);
-                segmentResult.Results.Clear();
-                continuationToken = segmentResult.ContinuationToken;
-            } while (continuationToken != null);
-            List<WebsitePage> websitePages = new List<WebsitePage>();
-            websitePages.AddRange(results.OrderByDescending(r => r.Clicks).Take(pageSize * 10));
-            results.Clear();
+                List<WebsitePage> results = new List<WebsitePage>();
+                TableContinuationToken continuationToken = null;
+                TableQuerySegment<WebsitePage> segmentResult;
+                do
+                {
+                    segmentResult = await websitePageMasterTable
+                        .ExecuteQuerySegmentedAsync(rangeQuery, continuationToken);
+                    results.AddRange(segmentResult);
+                    segmentResult.Results.Clear();
+                    continuationToken = segmentResult.ContinuationToken;
+                } while (continuationToken != null);
+                websitePages.AddRange(results.OrderByDescending(r => r.Clicks).Take(pageSize * 10));
+                HttpRuntime.Cache.Insert("popularSearch", websitePages, null,
+               DateTime.Now.AddMinutes(5), Cache.NoSlidingExpiration, CacheItemPriority.NotRemovable, null); // save to runtime cache
+            }
+            else
+            {
+                websitePages.AddRange(popularSearch);
+            }
             return View(websitePages.ToPagedList((int)pageNumber, pageSize));
         }
 

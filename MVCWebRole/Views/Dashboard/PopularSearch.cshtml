@@ -2,52 +2,59 @@
 @{
     Layout = null;
 }
-<div class="p-4" id="popular-search-view">
-    @if (Model != null && Model.Any())
-    {
+    <div class="p-4" id="popular-search-view">
         <p class="h3 text-white bg-transparent p-2">
             Popular Searches&nbsp;
             <button onclick="updatePopularSearch()" class="bg-transparent border-0 btn">
                 <img src="@Url.Content("~/Content/refreshbutton.svg")" alt="Refresh Popular Search" class="rounded-circle" style="max-width: 30px;">
             </button>
         </p>
-        <div class="list-group bg-light rounded-circle">
-            @foreach (var page in Model)
-            {
-                <div class="list-group-item list-group-item-action">
-                    <div class="d-flex text-break w-100 justify-content-start">
-                        <p class="h6 font-weight-bold text-wrap text-primary">
-                            @page.Title&nbsp;|&nbsp;@page.Domain
-                        </p>
+        @if (Model != null && Model.Any())
+        {
+            <div class="list-group bg-light rounded-circle">
+                @foreach (var page in Model)
+                {
+                    <div class="list-group-item list-group-item-action">
+                        <div class="d-flex text-break w-100 justify-content-start">
+                            <p class="h6 font-weight-bold text-wrap text-primary">
+                                @page.Title&nbsp;|&nbsp;@page.Domain
+                            </p>
+                        </div>
+                        <input style="outline:none; border:none;" class="text-dark small w-100 input-group-sm m-1" title="@page.Url" id="@page.RowKey" value="@page.Url" readonly>
+                        <img src=@Url.Content("~/Content/clipboard.png") title="Copy To Clipboard" onclick="copyLinkToClipBoard('@page.RowKey')" />
+                        <button class="btn btn-outline-warning rounded-circle text-primary" title="Visits">
+                            <small>@page.Clicks</small>
+                        </button>
                     </div>
-                    <input style="outline:none; border:none;" class="text-dark small w-100 input-group-sm m-1" title="@page.Url" id="@page.RowKey" value="@page.Url" readonly>
-                    <img src=@Url.Content("~/Content/clipboard.png") title="Copy To Clipboard" onclick="copyLinkToClipBoard('@page.RowKey')" />
-                    <button class="btn btn-outline-warning rounded-circle text-primary" title="Visits">
-                        <small>@page.Clicks</small>
-                    </button>
-                </div>
-            }
-        </div>
-        //pagination
-        <div class="p-3">
-            <nav class="d-flex justify-content-center">
-                <ul class="pagination pagination-sm">
-                    <li class="page-item  @(@Model.HasPreviousPage? "": "disabled")">
-                        <a class="page-link" href="@Url.Action("PopularSearch", new { pageNumber = Model.PageNumber - 1 })" tabindex="-1" aria-disabled="@(@Model.HasPreviousPage? "false": "true")">
-                            Prev
-                        </a>
-                    </li>
-                    @for (var pageNumber = 1; pageNumber <= Model.PageCount; pageNumber++)
-                    {
-                        <li class="page-item @(@Model.PageNumber == pageNumber? "active": "")">
-                            <a class="page-link" href="@Url.Action("PopularSearch", new { pageNumber = pageNumber })">@pageNumber</a>
+                }
+            </div>
+            //pagination
+            <div class="p-3">
+                <nav class="d-flex justify-content-center">
+                    <ul class="pagination pagination-sm">
+                        <li class="page-item  @(@Model.HasPreviousPage? "": "disabled")">
+                            <a class="page-link" href="@Url.Action("PopularSearch", new { pageNumber = Model.PageNumber - 1 })" tabindex="-1" aria-disabled="@(@Model.HasPreviousPage? "false": "true")">
+                                Prev
+                            </a>
                         </li>
-                    }
-                    <li class="page-item @(@Model.HasNextPage? "": "disabled")">
-                        <a class="page-link" href="@Url.Action("PopularSearch", new { pageNumber = Model.PageNumber + 1 })" tabindex="-1" aria-disabled="@(@Model.HasNextPage? "false": "true")">Next</a>
-                    </li>
-                </ul>
-            </nav>
-        </div>
-    }
-</div>
+                        @for (var pageNumber = 1; pageNumber <= Model.PageCount; pageNumber++)
+                        {
+                            <li class="page-item @(@Model.PageNumber == pageNumber? "active": "")">
+                                <a class="page-link" href="@Url.Action("PopularSearch", new { pageNumber = pageNumber })">@pageNumber</a>
+                            </li>
+                        }
+                        <li class="page-item @(@Model.HasNextPage? "": "disabled")">
+                            <a class="page-link" href="@Url.Action("PopularSearch", new { pageNumber = Model.PageNumber + 1 })" tabindex="-1" aria-disabled="@(@Model.HasNextPage? "false": "true")">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">Empty!</h4>
+                <p>No Records yet.</p>
+            </div>
+        }
+    </div>
